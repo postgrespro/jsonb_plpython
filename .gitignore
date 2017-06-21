@@ -9,7 +9,6 @@ regression.out
 *.gcda
 *.gcno
 *.gcov
-pg_pathman--*.sql
 tags
 cscope*
 hstore_plpython
