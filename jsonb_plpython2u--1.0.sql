@@ -1,4 +1,4 @@
-/* contrib/hstore_plpython/hstore_plpython2u--1.0.sql */
+/* contrib/jsonb_plpython/jsonb_plpython2u--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION jsonb_plpython2u" to load this file. \quit
