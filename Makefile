@@ -5,7 +5,8 @@ OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
 EXTENSION = jsonb_plpython
-DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
+# DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
+DATA = jsonb_plpython2u--1.0.sql
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
@@ -27,4 +28,4 @@ rpathdir = $(python_libdir)
 SHLIB_LINK += $(python_libspec) $(python_additional_libs)
 endif
 
-include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
+#include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
