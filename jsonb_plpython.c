@@ -4,6 +4,7 @@
 #include "plpython.h"
 #include "plpy_typeio.h"
 #include "hstore.h"
+#include "jsonb.h"
 
 PG_MODULE_MAGIC;
 
@@ -29,6 +30,7 @@ static hstoreCheckKeyLen_t hstoreCheckKeyLen_p;
 typedef size_t (*hstoreCheckValLen_t) (size_t len);
 static hstoreCheckValLen_t hstoreCheckValLen_p;
 
+/* Linkage to functions in jsonb module */
 
 /*
  * Module initialize function: fetch function pointers for cross-module calls.
@@ -83,45 +85,62 @@ _PG_init(void)
 PG_FUNCTION_INFO_V1(hstore_to_plpython);
 
 Datum
-hstore_to_plpython(PG_FUNCTION_ARGS)
+jsonb_to_plpython(PG_FUNCTION_ARGS)
 {
-	HStore	   *in = PG_GETARG_HS(0);
-	int			i;
-	int			count = HS_COUNT(in);
-	char	   *base = STRPTR(in);
-	HEntry	   *entries = ARRPTR(in);
+	Jsonb	   *in = PG_GETARG_JSONB(0);
+	JsonbIterator	*it;
+	JsonbIteratorToken r;
+	JsonbValue v;
+
 	PyObject   *dict;
 
 	dict = PyDict_New();
 
-	for (i = 0; i < count; i++)
+	if (JB_ROOT_IS_SCALAR(in))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("cannot call %s on a scalar",
+					 "jsonb_object_keys")));
+	else if (JB_ROOT_IS_ARRAY(in))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),\
+				 errmsg("cannot call %s on an array",
+					 "jsonb_object_keys")));
+
+	it = JsonbIteratorInit(&in->root);
+
+	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
 		PyObject   *key;
 
-		key = PyString_FromStringAndSize(HSTORE_KEY(entries, base, i),
-										 HSTORE_KEYLEN(entries, i));
-		if (HSTORE_VALISNULL(entries, i))
-			PyDict_SetItem(dict, key, Py_None);
-		else
-		{
+		if (r == WJB_KEY){
 			PyObject   *value;
 
-			value = PyString_FromStringAndSize(HSTORE_VAL(entries, base, i),
-											   HSTORE_VALLEN(entries, i));
-			PyDict_SetItem(dict, key, value);
+			key = PyString_FromStringAndSize(
+					v.val.string.val,
+					v.val.string.len
+					);
+
+			r = JsonbIteratorNext(&it, &v, true);
+			value = PyObj_v.val.string.val;
+			if (r != WJB_DONE)
+				PyDict_SetItem(dict, key, value);
+			else
+				PyDict_SetItem(dict, key, Py_None);
+
 			Py_XDECREF(value);
+			Py_XDECREF(key);
 		}
-		Py_XDECREF(key);
 	}
 
 	return PointerGetDatum(dict);
 }
 
 
-PG_FUNCTION_INFO_V1(plpython_to_hstore);
+PG_FUNCTION_INFO_V1(plpython_to_jsonb);
 
 Datum
-plpython_to_hstore(PG_FUNCTION_ARGS)
+plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
 	PyObject   *dict;
 	volatile PyObject *items_v = NULL;
