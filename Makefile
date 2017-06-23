@@ -1,8 +1,8 @@
-# contrib/pg_prewarm/Makefile
-
 MODULE_big = jsonb_plpython
 OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
+override CPPFLAGS := -I. -I$(srcdir) -I/usr/include/python3.5m -I/home/anthony/Documents/work/postgresql/src/pl/plpython $(CPPFLAGS)
+
 
 EXTENSION = jsonb_plpython
 # DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
