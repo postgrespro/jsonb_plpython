@@ -11,9 +11,9 @@ CREATE FUNCTION plpython_to_jsonb(val internal) RETURNS jsonb
 LANGUAGE C STRICT IMMUTABLE
 AS 'MODULE_PATHNAME';
 
-CREATE TRANSFORM FOR jsonb LANGUAGE plpython2u (
+CREATE TRANSFORM FOR jsonb LANGUAGE plpythonu (
 	FROM SQL WITH FUNCTION jsonb_to_plpython(internal),
 	TO SQL WITH FUNCTION plpython_to_jsonb(internal)
 );
 
-COMMENT ON TRANSFORM FOR jsonb LANGUAGE plpython2u IS 'transform between jsonb and Python dict';
+COMMENT ON TRANSFORM FOR jsonb LANGUAGE plpythonu IS 'transform between jsonb and Python dict';

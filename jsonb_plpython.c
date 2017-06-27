@@ -82,7 +82,7 @@ _PG_init(void)
 #define hstoreCheckValLen hstoreCheckValLen_p
 
 
-PG_FUNCTION_INFO_V1(hstore_to_plpython);
+PG_FUNCTION_INFO_V1(jsonb_to_plpython);
 
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
@@ -96,38 +96,37 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 
 	dict = PyDict_New();
 
-	if (JB_ROOT_IS_SCALAR(in))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("cannot call %s on a scalar",
-					 "jsonb_object_keys")));
-	else if (JB_ROOT_IS_ARRAY(in))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),\
-				 errmsg("cannot call %s on an array",
-					 "jsonb_object_keys")));
-
 	it = JsonbIteratorInit(&in->root);
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
-		PyObject   *key;
-
 		if (r == WJB_KEY){
-			PyObject   *value;
+			PyObject   *key;
+			PyObject *value = Py_None;
+			JsonbValue k;
 
 			key = PyString_FromStringAndSize(
 					v.val.string.val,
 					v.val.string.len
 					);
 
-			r = JsonbIteratorNext(&it, &v, true);
-			value = PyObj_v.val.string.val;
-			if (r != WJB_DONE)
-				PyDict_SetItem(dict, key, value);
-			else
-				PyDict_SetItem(dict, key, Py_None);
-
+			if ((r = JsonbIteratorNext(&it, &k, true)) == WJB_VALUE)
+				switch (k.type){
+					case jbvBinary:
+						break;
+					case jbvNumeric:
+						break;
+					case jbvString:
+						value = PyString_FromStringAndSize(
+								k.val.string.val,
+								k.val.string.len
+								);
+						break;
+					case jbvBool:
+						value = k.val.boolean ? Py_True: Py_False;
+						break;
+				}
+			PyDict_SetItem(dict, key, value);
 			Py_XDECREF(value);
 			Py_XDECREF(key);
 		}
