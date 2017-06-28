@@ -82,31 +82,22 @@ _PG_init(void)
 #define hstoreCheckKeyLen hstoreCheckKeyLen_p
 #define hstoreCheckValLen hstoreCheckValLen_p
 
-
-PG_FUNCTION_INFO_V1(jsonb_to_plpython);
-
-Datum
-jsonb_to_plpython(PG_FUNCTION_ARGS)
-{
-	Jsonb	   *in = PG_GETARG_JSONB(0);
+PyObject *PyDict_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor){
+	PyObject   *dict;
 	JsonbIterator	*it;
 	JsonbIteratorToken r;
 	JsonbValue v;
 
-	PyObject   *dict;
 
 	dict = PyDict_New();
 
-	it = JsonbIteratorInit(&in->root);
+	it = JsonbIteratorInit(jsonb);
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
 		if (r == WJB_KEY){
 			PyObject   *key;
 			PyObject *value = Py_None;
-			PyObject *decimal_module;
-			PyObject *decimal_constructor;
-
 			char *str;
 			JsonbValue k;
 
@@ -120,19 +111,87 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 					case jbvNull:
 						break;
 					case jbvBinary:
+						value = PyDict_FromJsonb(k.val.binary.data, decimal_constructor);
 						break;
 					case jbvNumeric:
-						//TODO rewrite using static functions when added as
-						//patch to postgres
-						//
-						decimal_module = PyImport_ImportModule("cdecimal");
-						if (!decimal_module){
-							PyErr_Clear();
-							decimal_module = PyImport_ImportModule("decimal");
-						}
-						decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
-						str = DatumGetCString(DirectFunctionCall1(numeric_out, k.val.numeric));
-						value = PyObject_CallFunction(decimal_constructor, "s", str);
+						str = DatumGetCString(
+								DirectFunctionCall1(numeric_out, k.val.numeric)
+								);
+						value = PyObject_CallFunction(
+								decimal_constructor, "s", str
+								);
+						break;
+					case jbvString:
+						value = PyString_FromStringAndSize(
+								k.val.string.val,
+								k.val.string.len
+								);
+						break;
+					case jbvBool:
+						value = k.val.boolean ? Py_True: Py_False;
+						break;
+				}
+			PyDict_SetItem(dict, key, value);
+			Py_XDECREF(value);
+			Py_XDECREF(key);
+		}
+	}
+	return (dict);
+
+}
+
+PG_FUNCTION_INFO_V1(jsonb_to_plpython);
+
+Datum
+jsonb_to_plpython(PG_FUNCTION_ARGS)
+{
+	Jsonb	   *in = PG_GETARG_JSONB(0);
+	JsonbIterator	*it;
+	JsonbIteratorToken r;
+	JsonbValue v;
+
+	PyObject   *dict;
+	PyObject *decimal_module;
+	PyObject *decimal_constructor;
+	decimal_module = PyImport_ImportModule("cdecimal");
+	if (!decimal_module){
+		PyErr_Clear();
+		decimal_module = PyImport_ImportModule("decimal");
+	}
+	decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
+
+
+	dict = PyDict_New();
+
+	it = JsonbIteratorInit(&in->root);
+
+	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
+	{
+		if (r == WJB_KEY){
+			PyObject   *key;
+			PyObject *value = Py_None;
+			char *str;
+			JsonbValue k;
+
+			key = PyString_FromStringAndSize(
+					v.val.string.val,
+					v.val.string.len
+					);
+
+			if ((r = JsonbIteratorNext(&it, &k, true)) == WJB_VALUE)
+				switch (k.type){
+					case jbvNull:
+						break;
+					case jbvBinary:
+						value = PyDict_FromJsonb(k.val.binary.data, decimal_constructor);
+						break;
+					case jbvNumeric:
+						str = DatumGetCString(
+								DirectFunctionCall1(numeric_out, k.val.numeric)
+								);
+						value = PyObject_CallFunction(
+								decimal_constructor, "s", str
+								);
 						break;
 					case jbvString:
 						value = PyString_FromStringAndSize(
