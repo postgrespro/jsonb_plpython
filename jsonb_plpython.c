@@ -5,7 +5,7 @@
 #include "plpy_typeio.h"
 #include "hstore.h"
 #include "jsonb.h"
-#include "numeric.c"
+#include "fmgrprotos.h"
 
 PG_MODULE_MAGIC;
 
