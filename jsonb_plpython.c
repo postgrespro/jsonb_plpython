@@ -5,6 +5,7 @@
 #include "plpy_typeio.h"
 #include "hstore.h"
 #include "jsonb.h"
+#include "numeric.c"
 
 PG_MODULE_MAGIC;
 
@@ -103,6 +104,10 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 		if (r == WJB_KEY){
 			PyObject   *key;
 			PyObject *value = Py_None;
+			PyObject *decimal_module;
+			PyObject *decimal_constructor;
+
+			char *str;
 			JsonbValue k;
 
 			key = PyString_FromStringAndSize(
@@ -112,9 +117,22 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 
 			if ((r = JsonbIteratorNext(&it, &k, true)) == WJB_VALUE)
 				switch (k.type){
+					case jbvNull:
+						break;
 					case jbvBinary:
 						break;
 					case jbvNumeric:
+						//TODO rewrite using static functions when added as
+						//patch to postgres
+						//
+						decimal_module = PyImport_ImportModule("cdecimal");
+						if (!decimal_module){
+							PyErr_Clear();
+							decimal_module = PyImport_ImportModule("decimal");
+						}
+						decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
+						str = DatumGetCString(DirectFunctionCall1(numeric_out, k.val.numeric));
+						value = PyObject_CallFunction(decimal_constructor, "s", str);
 						break;
 					case jbvString:
 						value = PyString_FromStringAndSize(

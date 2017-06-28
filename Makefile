@@ -10,7 +10,7 @@ ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-override CPPFLAGS := -I. -I${top_srcdir}/src/pl/plpython -I/home/anthony/Documents/work/postgresql/src/include/utils/ -I/home/anthony/Documents/work/postgresql/contrib/hstore/ -I/home/anthony/Documents/work/postgresql/src/pl/plpython/ $(python_includespec) $(CPPFLAGS) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
+override CPPFLAGS := -I. -I${top_srcdir}/src/pl/plpython -I/home/anthony/Documents/work/postgresql/src/backend/utils/adt/ -I/home/anthony/Documents/work/postgresql/src/include/utils/ -I/home/anthony/Documents/work/postgresql/contrib/hstore/ -I/home/anthony/Documents/work/postgresql/src/pl/plpython/ $(python_includespec) $(CPPFLAGS) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
 else
 subdir = contrib/jsonb_plpython
 top_builddir = ../..
