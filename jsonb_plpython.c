@@ -82,6 +82,43 @@ _PG_init(void)
 #define hstoreCheckKeyLen hstoreCheckKeyLen_p
 #define hstoreCheckValLen hstoreCheckValLen_p
 
+PyObject *PyDict_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
+
+PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_constructor){
+	PyObject *result;
+	char *str;
+	switch (jsonbValue.type){
+		case jbvNull:
+			result = Py_None;
+			break;
+		case jbvBinary:
+			result = PyDict_FromJsonb(jsonbValue.val.binary.data, decimal_constructor);
+			break;
+		case jbvNumeric:
+			str = DatumGetCString(
+					DirectFunctionCall1(numeric_out, jsonbValue.val.numeric)
+					);
+			result = PyObject_CallFunction(
+					decimal_constructor, "s", str
+					);
+			break;
+		case jbvString:
+			result = PyString_FromStringAndSize(
+					jsonbValue.val.string.val,
+					jsonbValue.val.string.len
+					);
+			break;
+		case jbvBool:
+			result = jsonbValue.val.boolean ? Py_True: Py_False;
+			break;
+		case jbvArray:
+			result = PyString_FromStringAndSize("ValArr",6);
+			break;
+	}
+	return (result);
+}
+
+
 PyObject *PyDict_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor){
 	PyObject   *dict;
 	JsonbIterator	*it;
@@ -95,49 +132,66 @@ PyObject *PyDict_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
-		if (r == WJB_KEY){
-			PyObject   *key;
-			PyObject *value = Py_None;
-			char *str;
-			JsonbValue k;
+		PyObject   *key = Py_None;
+		PyObject *value = Py_None;
+		PyObject *subVal = Py_None;
+		char *str;
+		int i,nElems;
+		JsonbValue k;
 
-			key = PyString_FromStringAndSize(
-					v.val.string.val,
-					v.val.string.len
-					);
+		switch (r){
+			case (WJB_KEY):
+				key = PyString_FromStringAndSize(
+						v.val.string.val,
+						v.val.string.len
+						);
 
-			if ((r = JsonbIteratorNext(&it, &k, true)) == WJB_VALUE)
-				switch (k.type){
-					case jbvNull:
+				r = JsonbIteratorNext(&it, &v, true);
+				switch(r){
+					case (WJB_VALUE):
+						value = PyObject_FromJsonbValue(v,decimal_constructor);
 						break;
-					case jbvBinary:
-						value = PyDict_FromJsonb(k.val.binary.data, decimal_constructor);
+					case (WJB_BEGIN_ARRAY):
+						value = PyList_New(v.val.array.nElems);
+						while (
+								((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
+								&(r!=WJB_DONE)
+								)
+							PyList_Append(value, PyObject_FromJsonbValue(v, decimal_constructor));
 						break;
-					case jbvNumeric:
-						str = DatumGetCString(
-								DirectFunctionCall1(numeric_out, k.val.numeric)
-								);
-						value = PyObject_CallFunction(
-								decimal_constructor, "s", str
-								);
-						break;
-					case jbvString:
-						value = PyString_FromStringAndSize(
-								k.val.string.val,
-								k.val.string.len
-								);
-						break;
-					case jbvBool:
-						value = k.val.boolean ? Py_True: Py_False;
-						break;
-				}
-			PyDict_SetItem(dict, key, value);
-			Py_XDECREF(value);
-			Py_XDECREF(key);
+					}
+				break;
+			case (WJB_DONE):
+				value = PyString_FromStringAndSize("Done",4);
+				break;
+			case (WJB_BEGIN_ARRAY):
+				value = PyList_New(v.val.array.nElems);
+				while (
+						((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
+						&(r!=WJB_DONE)
+						)
+					PyList_Append(value, PyObject_FromJsonbValue(v, decimal_constructor));
+				break;
+			case (WJB_END_ARRAY):
+				break;
+			case (WJB_BEGIN_OBJECT):
+				value = PyString_FromStringAndSize("Obj", 3);
+				break;
+			case (WJB_END_OBJECT):
+				value = PyString_FromStringAndSize("ObjEnd", 6);
+				break;
+			case (WJB_ELEM):
+				PyList_Append(value, PyObject_FromJsonbValue(v, decimal_constructor));
+				break;
+			case (WJB_VALUE):
+				value = PyString_FromStringAndSize("Val", 3);
+				break;
 		}
+		PyDict_SetItem(dict, key, value);
+		Py_XDECREF(value);
+		Py_XDECREF(key);
 	}
 	return (dict);
-
 }
 
 PG_FUNCTION_INFO_V1(jsonb_to_plpython);
@@ -179,30 +233,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 					);
 
 			if ((r = JsonbIteratorNext(&it, &k, true)) == WJB_VALUE)
-				switch (k.type){
-					case jbvNull:
-						break;
-					case jbvBinary:
-						value = PyDict_FromJsonb(k.val.binary.data, decimal_constructor);
-						break;
-					case jbvNumeric:
-						str = DatumGetCString(
-								DirectFunctionCall1(numeric_out, k.val.numeric)
-								);
-						value = PyObject_CallFunction(
-								decimal_constructor, "s", str
-								);
-						break;
-					case jbvString:
-						value = PyString_FromStringAndSize(
-								k.val.string.val,
-								k.val.string.len
-								);
-						break;
-					case jbvBool:
-						value = k.val.boolean ? Py_True: Py_False;
-						break;
-				}
+				value = PyObject_FromJsonbValue(k, decimal_constructor);
 			PyDict_SetItem(dict, key, value);
 			Py_XDECREF(value);
 			Py_XDECREF(key);
