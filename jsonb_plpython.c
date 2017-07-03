@@ -124,6 +124,7 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 	JsonbIteratorToken r;
 	JsonbValue v;
 
+				object = PyDict_New();
 	it = JsonbIteratorInit(jsonb);
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
@@ -133,7 +134,6 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 
 		switch (r){
 			case (WJB_KEY):
-				object = PyDict_New();
 				key = PyString_FromStringAndSize(
 						v.val.string.val,
 						v.val.string.len
@@ -144,7 +144,6 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 				PyDict_SetItem(object, key, value);
 				Py_XDECREF(value);
 				Py_XDECREF(key);
-				return (object);
 				break;
 			case (WJB_BEGIN_ARRAY):
 				object = PyList_New(0);
@@ -155,12 +154,7 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 					PyList_Append(object, PyObject_FromJsonbValue(v, decimal_constructor));
 				return (object);
 				break;
-			case (WJB_END_ARRAY):
-			case (WJB_BEGIN_OBJECT):
-			case (WJB_END_OBJECT):
-			case (WJB_ELEM):
-			case (WJB_DONE):
-			case (WJB_VALUE):
+			default:
 				break;
 		}
 	}
@@ -184,9 +178,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	}
 	decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
 
-
 	dict = PyObject_FromJsonb(&in->root, decimal_constructor);
-
 
 	return PointerGetDatum(dict);
 }
