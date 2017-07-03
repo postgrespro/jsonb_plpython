@@ -169,6 +169,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	Jsonb	   *in = PG_GETARG_JSONB(0);
 
 	PyObject   *dict;
+	//TODO make next 2 variables GLOBAL!!!!
 	PyObject *decimal_module;
 	PyObject *decimal_constructor;
 	decimal_module = PyImport_ImportModule("cdecimal");
@@ -179,6 +180,8 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
 
 	dict = PyObject_FromJsonb(&in->root, decimal_constructor);
+
+	//TODO free allocated memory
 
 	return PointerGetDatum(dict);
 }
@@ -192,9 +195,11 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 	PyObject   *dict;
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
-	HStore	   *out;
+	Jsonb	   *out;
 
 	dict = (PyObject *) PG_GETARG_POINTER(0);
+	//TODO check on dict, list or numeric
+	//TODO check if this assert is needed
 	if (!PyMapping_Check(dict))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -223,7 +228,7 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 			value = PyTuple_GetItem(tuple, 1);
 
 			pairs[i].key = PLyObject_AsString(key);
-			pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));
+			//pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));
 			pairs[i].needfree = true;
 
 			if (value == Py_None)
@@ -241,7 +246,7 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 		}
 		Py_DECREF(items_v);
 
-		pcount = hstoreUniquePairs(pairs, pcount, &buflen);
+		//pcount = hstoreUniquePairs(pairs, pcount, &buflen);
 		out = hstorePairs(pairs, pcount, buflen);
 	}
 	PG_CATCH();
