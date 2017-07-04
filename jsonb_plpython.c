@@ -195,7 +195,10 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 	PyObject   *dict;
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
-	Jsonb	   *out;
+	JsonbValue	   *out;
+	JsonbValue	   jbvValue;
+	JsonbValue	   jbvKey;
+	JsonbParseState *jsonb_state = NULL;
 
 	dict = (PyObject *) PG_GETARG_POINTER(0);
 	//TODO check on dict, list or numeric
@@ -210,12 +213,10 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 
 	PG_TRY();
 	{
-		int32		buflen;
 		int32		i;
-		Pairs	   *pairs;
 		PyObject   *items = (PyObject *) items_v;
 
-		pairs = palloc(pcount * sizeof(*pairs));
+		pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
 
 		for (i = 0; i < pcount; i++)
 		{
@@ -227,27 +228,31 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 			key = PyTuple_GetItem(tuple, 0);
 			value = PyTuple_GetItem(tuple, 1);
 
-			pairs[i].key = PLyObject_AsString(key);
-			//pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));
-			pairs[i].needfree = true;
-
-			if (value == Py_None)
-			{
-				pairs[i].val = NULL;
-				pairs[i].vallen = 0;
-				pairs[i].isnull = true;
+			if (key == Py_None){
+				jbvKey.type = jbvString;
+				jbvKey.val.string.len = 0;
+				jbvKey.val.string.val = "";
 			}
-			else
-			{
-				pairs[i].val = PLyObject_AsString(value);
-				pairs[i].vallen = hstoreCheckValLen(strlen(pairs[i].val));
-				pairs[i].isnull = false;
+			else{
+				jbvKey.type = jbvString;
+				jbvKey.val.string.val = PLyObject_AsString(key);
+				jbvKey.val.string.len = strlen(jbvKey.val.string.val);
 			}
+			pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
+			if (value == Py_None){
+				jbvValue.type = jbvString;
+				jbvValue.val.string.val = "";
+				jbvValue.val.string.len = 0;
+			}
+			else{
+				jbvValue.type = jbvString;
+				jbvValue.val.string.val = PLyObject_AsString(value);
+				jbvValue.val.string.len = strlen(jbvValue.val.string.val);
+			}
+			pushJsonbValue(&jsonb_state,WJB_VALUE,&jbvValue);
 		}
-		Py_DECREF(items_v);
 
-		//pcount = hstoreUniquePairs(pairs, pcount, &buflen);
-		out = hstorePairs(pairs, pcount, buflen);
+		out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
 	}
 	PG_CATCH();
 	{
@@ -256,5 +261,5 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 	}
 	PG_END_TRY();
 
-	PG_RETURN_POINTER(out);
+	PG_RETURN_POINTER(JsonbValueToJsonb(out));
 }
