@@ -192,74 +192,113 @@ PG_FUNCTION_INFO_V1(plpython_to_jsonb);
 Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
-	PyObject   *dict;
+	PyObject   *obj;
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
 	JsonbValue	   *out;
-	JsonbValue	   jbvValue;
-	JsonbValue	   jbvKey;
 	JsonbParseState *jsonb_state = NULL;
 
-	dict = (PyObject *) PG_GETARG_POINTER(0);
-	//TODO check on dict, list or numeric
-	//TODO check if this assert is needed
-	if (!PyMapping_Check(dict))
+	obj = (PyObject *) PG_GETARG_POINTER(0);
+	/*
+	if (!PySequence_check(obj))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("not a Python mapping")));
+				 errmsg("not a Python sequence")));
+	*/
+	if(PyMapping_Check(obj)){
+		pcount = PyMapping_Size(obj);
+		items_v = PyMapping_Items(obj);
 
-	pcount = PyMapping_Size(dict);
-	items_v = PyMapping_Items(dict);
-
-	PG_TRY();
-	{
-		int32		i;
-		PyObject   *items = (PyObject *) items_v;
-
-		pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
-
-		for (i = 0; i < pcount; i++)
+		PG_TRY();
 		{
-			PyObject   *tuple;
-			PyObject   *key;
-			PyObject   *value;
+			int32		i;
+			PyObject   *items = (PyObject *) items_v;
+			JsonbValue	   jbvValue;
+			JsonbValue	   jbvKey;
 
-			tuple = PyList_GetItem(items, i);
-			key = PyTuple_GetItem(tuple, 0);
-			value = PyTuple_GetItem(tuple, 1);
+			pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
 
-			if (key == Py_None){
-				jbvKey.type = jbvString;
-				jbvKey.val.string.len = 0;
-				jbvKey.val.string.val = "";
+			for (i = 0; i < pcount; i++)
+			{
+				PyObject   *tuple;
+				PyObject   *key;
+				PyObject   *value;
+
+				tuple = PyList_GetItem(items, i);
+				key = PyTuple_GetItem(tuple, 0);
+				value = PyTuple_GetItem(tuple, 1);
+
+				if (key == Py_None){
+					jbvKey.type = jbvString;
+					jbvKey.val.string.len = 0;
+					jbvKey.val.string.val = "";
+				}
+				else{
+					jbvKey.type = jbvString;
+					jbvKey.val.string.val = PLyObject_AsString(key);
+					jbvKey.val.string.len = strlen(jbvKey.val.string.val);
+				}
+				pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
+				if (value == Py_None){
+					jbvValue.type = jbvString;
+					jbvValue.val.string.val = "";
+					jbvValue.val.string.len = 0;
+				}
+				else{
+					jbvValue.type = jbvString;
+					//TODO AsString - rewrite
+					jbvValue.val.string.val = PLyObject_AsString(value);
+					jbvValue.val.string.len = strlen(jbvValue.val.string.val);
+				}
+				pushJsonbValue(&jsonb_state,WJB_VALUE,&jbvValue);
 			}
-			else{
-				jbvKey.type = jbvString;
-				jbvKey.val.string.val = PLyObject_AsString(key);
-				jbvKey.val.string.len = strlen(jbvKey.val.string.val);
-			}
-			pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
-			if (value == Py_None){
-				jbvValue.type = jbvString;
-				jbvValue.val.string.val = "";
-				jbvValue.val.string.len = 0;
-			}
-			else{
-				jbvValue.type = jbvString;
-				jbvValue.val.string.val = PLyObject_AsString(value);
-				jbvValue.val.string.len = strlen(jbvValue.val.string.val);
-			}
-			pushJsonbValue(&jsonb_state,WJB_VALUE,&jbvValue);
+
+			out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
 		}
-
-		out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
+		PG_CATCH();
+		{
+			Py_DECREF(items_v);
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
 	}
-	PG_CATCH();
-	{
-		Py_DECREF(items_v);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	else
+		if(PySequence_Check(obj)){
+			JsonbValue	   jbvElem;
 
+			pcount = PySequence_Size(obj);
+
+			PG_TRY();
+			{
+				int32		i;
+
+				pushJsonbValue(&jsonb_state,WJB_BEGIN_ARRAY, NULL);
+
+				for (i = 0; i < pcount; i++)
+				{
+					PyObject   *value;
+
+					value = PySequence_GetItem(obj, i);
+
+					if (value == Py_None){
+						jbvElem.type = jbvString;
+						jbvElem.val.string.len = 0;
+						jbvElem.val.string.val = "";
+					}
+					else{
+						jbvElem.type = jbvString;
+						jbvElem.val.string.val = PLyObject_AsString(value);
+						jbvElem.val.string.len = strlen(jbvElem.val.string.val);
+					}
+					pushJsonbValue(&jsonb_state,WJB_ELEM,&jbvElem);
+				}
+				out = pushJsonbValue(&jsonb_state,WJB_END_ARRAY, NULL);
+			}
+			PG_CATCH();
+			{
+				PG_RE_THROW();
+			}
+			PG_END_TRY();
+		}
 	PG_RETURN_POINTER(JsonbValueToJsonb(out));
 }
