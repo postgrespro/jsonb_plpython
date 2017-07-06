@@ -95,6 +95,7 @@ PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_const
 			result = PyObject_FromJsonb(jsonbValue.val.binary.data, decimal_constructor);
 			break;
 		case jbvNumeric:
+			//TODO rewrite this
 			str = DatumGetCString(
 					DirectFunctionCall1(numeric_out, jsonbValue.val.numeric)
 					);
@@ -187,25 +188,13 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 }
 
 
-PG_FUNCTION_INFO_V1(plpython_to_jsonb);
-
-Datum
-plpython_to_jsonb(PG_FUNCTION_ARGS)
-{
-	PyObject   *obj;
+JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
 	JsonbValue	   *out;
-	JsonbParseState *jsonb_state = NULL;
 
-	obj = (PyObject *) PG_GETARG_POINTER(0);
-	/*
-	if (!PySequence_check(obj))
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("not a Python sequence")));
-	*/
 	if(PyMapping_Check(obj)){
+		//DICT
 		pcount = PyMapping_Size(obj);
 		items_v = PyMapping_Items(obj);
 
@@ -213,7 +202,7 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 		{
 			int32		i;
 			PyObject   *items = (PyObject *) items_v;
-			JsonbValue	   jbvValue;
+			JsonbValue	   *jbvValue;
 			JsonbValue	   jbvKey;
 
 			pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
@@ -239,18 +228,8 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 					jbvKey.val.string.len = strlen(jbvKey.val.string.val);
 				}
 				pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
-				if (value == Py_None){
-					jbvValue.type = jbvString;
-					jbvValue.val.string.val = "";
-					jbvValue.val.string.len = 0;
-				}
-				else{
-					jbvValue.type = jbvString;
-					//TODO AsString - rewrite
-					jbvValue.val.string.val = PLyObject_AsString(value);
-					jbvValue.val.string.len = strlen(jbvValue.val.string.val);
-				}
-				pushJsonbValue(&jsonb_state,WJB_VALUE,&jbvValue);
+				jbvValue = PyObject_ToJsonbValue(value, jsonb_state);
+				pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
 			}
 
 			out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
@@ -264,7 +243,8 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 	}
 	else
 		if(PySequence_Check(obj)){
-			JsonbValue	   jbvElem;
+			//LIST
+			JsonbValue	   *jbvElem;
 
 			pcount = PySequence_Size(obj);
 
@@ -279,18 +259,8 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 					PyObject   *value;
 
 					value = PySequence_GetItem(obj, i);
-
-					if (value == Py_None){
-						jbvElem.type = jbvString;
-						jbvElem.val.string.len = 0;
-						jbvElem.val.string.val = "";
-					}
-					else{
-						jbvElem.type = jbvString;
-						jbvElem.val.string.val = PLyObject_AsString(value);
-						jbvElem.val.string.len = strlen(jbvElem.val.string.val);
-					}
-					pushJsonbValue(&jsonb_state,WJB_ELEM,&jbvElem);
+					jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
+					pushJsonbValue(&jsonb_state,WJB_ELEM,jbvElem);
 				}
 				out = pushJsonbValue(&jsonb_state,WJB_END_ARRAY, NULL);
 			}
@@ -300,5 +270,35 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 			}
 			PG_END_TRY();
 		}
+		else
+			//if (PyNumber_Check(obj))
+			{
+				JsonbValue	   jbvElem;
+				jbvElem.type=jbvString;
+				jbvElem.val.string.val = PLyObject_AsString(obj);
+				jbvElem.val.string.len = strlen(jbvElem.val.string.val);
+				out = &jbvElem;
+			}
+	return (out);
+}
+
+PG_FUNCTION_INFO_V1(plpython_to_jsonb);
+
+Datum
+plpython_to_jsonb(PG_FUNCTION_ARGS)
+{
+	PyObject   *obj;
+	volatile PyObject *items_v = NULL;
+	JsonbValue	   *out;
+	JsonbParseState *jsonb_state = NULL;
+
+	obj = (PyObject *) PG_GETARG_POINTER(0);
+	/*
+	if (!PySequence_check(obj))
+		ereport(ERROR,
+				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				 errmsg("not a Python sequence")));
+	*/
+	out = PyObject_ToJsonbValue(obj, jsonb_state);
 	PG_RETURN_POINTER(JsonbValueToJsonb(out));
 }
