@@ -231,7 +231,6 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				jbvValue = PyObject_ToJsonbValue(value, jsonb_state);
 				if (IsAJsonbScalar(jbvValue))
 					pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
-
 			}
 
 			out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
@@ -273,8 +272,18 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 			PG_END_TRY();
 		}
 		else
-			//if (PyNumber_Check(obj))
+			if (PyNumber_Check(obj)){
+				// NUMERIC
+				JsonbValue jbvInt;
+				jbvInt.type = jbvNumeric;
+				jbvInt.val.numeric = DatumGetNumeric(
+						DirectFunctionCall1(numeric_in, PLyObject_AsString(obj))
+						);
+				out = &jbvInt;
+			}
+			else
 			{
+				// STRING
 				JsonbValue	   jbvElem;
 				jbvElem.type=jbvString;
 				jbvElem.val.string.val = PLyObject_AsString(obj);
