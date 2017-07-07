@@ -191,7 +191,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
-	JsonbValue	   *out;
+	JsonbValue	   *out = NULL;
 
 	if(PyMapping_Check(obj)){
 		//DICT
@@ -229,7 +229,9 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				}
 				pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
 				jbvValue = PyObject_ToJsonbValue(value, jsonb_state);
-				pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
+				if (IsAJsonbScalar(jbvValue))
+					pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
+
 			}
 
 			out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
