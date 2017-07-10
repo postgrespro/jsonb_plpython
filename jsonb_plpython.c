@@ -3,7 +3,6 @@
 #include "fmgr.h"
 #include "plpython.h"
 #include "plpy_typeio.h"
-#include "hstore.h"
 #include "jsonb.h"
 #include "fmgrprotos.h"
 
@@ -261,7 +260,8 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 
 					value = PySequence_GetItem(obj, i);
 					jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
-					pushJsonbValue(&jsonb_state,WJB_ELEM,jbvElem);
+					if (IsAJsonbScalar(jbvElem))
+						pushJsonbValue(&jsonb_state,WJB_ELEM,jbvElem);
 				}
 				out = pushJsonbValue(&jsonb_state,WJB_END_ARRAY, NULL);
 			}
