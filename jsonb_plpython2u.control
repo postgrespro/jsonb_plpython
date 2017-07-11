@@ -3,4 +3,4 @@ comment = 'transform between jsonb and plpythonu'
 default_version = '1.0'
 module_pathname = '$libdir/jsonb_plpython'
 relocatable = true
-requires = 'plpython2u, hstore'
+requires = 'plpython2u'

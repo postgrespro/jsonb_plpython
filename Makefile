@@ -7,7 +7,7 @@ EXTENSION = jsonb_plpythonu jsonb_plpython2u
 # DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
 DATA = jsonb_plpythonu--1.0.sql jsonb_plpython2u--1.0.sql
 
-REGRESS = jsonb_plpython
+REGRESS = jsonb_plpython jsonb_plpython2
 REGRESS_PLPYTHON3_MANGLE := $(REGRESS)
 
 ifdef USE_PGXS
@@ -31,9 +31,9 @@ rpathdir = $(python_libdir)
 SHLIB_LINK += $(python_libspec) $(python_additional_libs)
 endif
 
-REGRESS_OPTS += --load-extension=jsonb
+REGRESS_OPTS += --load-extension=plpythonu
 ifeq ($(python_majorversion),2)
-REGRESS_OPTS += --load-extension=plpythonu --load-extension=jsonb_plpythonu
+REGRESS_OPTS += --load-extension=plpython2u
 endif
 EXTRA_INSTALL += contrib/jsonb
 

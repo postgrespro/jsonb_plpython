@@ -1,5 +1,20 @@
+CREATE EXTENSION jsonb_plpythonu CASCADE;
+NOTICE:  installing required extension "hstore"
+-- test jsonb -> python
+CREATE FUNCTION test1(val jsonb) RETURNS int
+LANGUAGE plpythonu
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert isinstance(val, dict)
+plpy.info(sorted(val.items()))
+return len(val)
+$$;
+SELECT test1('{"a":1, "c":"NULL"}'::jsonb);
+INFO:  [('a', Decimal('1')), ('c', 'NULL')]
  test1 
 -------
      2
 (1 row)
 
+DROP EXTENSION jsonb_plpythonu CASCADE;
+NOTICE:  drop cascades to function test1(jsonb)
