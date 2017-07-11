@@ -19,7 +19,7 @@ static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
 #endif
 
 /* Linkage to functions in hstore module */
-typedef HStore *(*hstoreUpgrade_t) (Datum orig);
+/*typedef HStore *(*hstoreUpgrade_t) (Datum orig);
 static hstoreUpgrade_t hstoreUpgrade_p;
 typedef int (*hstoreUniquePairs_t) (Pairs *a, int32 l, int32 *buflen);
 static hstoreUniquePairs_t hstoreUniquePairs_p;
@@ -29,7 +29,7 @@ typedef size_t (*hstoreCheckKeyLen_t) (size_t len);
 static hstoreCheckKeyLen_t hstoreCheckKeyLen_p;
 typedef size_t (*hstoreCheckValLen_t) (size_t len);
 static hstoreCheckValLen_t hstoreCheckValLen_p;
-
+*/
 /* Linkage to functions in jsonb module */
 
 /*
@@ -39,7 +39,7 @@ void
 _PG_init(void)
 {
 	/* Asserts verify that typedefs above match original declarations */
-	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
+/*	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
 	PLyObject_AsString_p = (PLyObject_AsString_t)
 		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyObject_AsString",
 							   true, NULL);
@@ -68,18 +68,13 @@ _PG_init(void)
 	AssertVariableIsOfType(&hstoreCheckValLen, hstoreCheckValLen_t);
 	hstoreCheckValLen_p = (hstoreCheckValLen_t)
 		load_external_function("$libdir/hstore", "hstoreCheckValLen",
-							   true, NULL);
+							   true, NULL);*/
 }
 
 
 /* These defines must be after the module init function */
 #define PLyObject_AsString PLyObject_AsString_p
 #define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
-#define hstoreUpgrade hstoreUpgrade_p
-#define hstoreUniquePairs hstoreUniquePairs_p
-#define hstorePairs hstorePairs_p
-#define hstoreCheckKeyLen hstoreCheckKeyLen_p
-#define hstoreCheckValLen hstoreCheckValLen_p
 
 PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
@@ -299,7 +294,6 @@ Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
 	PyObject   *obj;
-	volatile PyObject *items_v = NULL;
 	JsonbValue	   *out;
 	JsonbParseState *jsonb_state = NULL;
 

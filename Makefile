@@ -7,6 +7,9 @@ EXTENSION = jsonb_plpythonu jsonb_plpython2u
 # DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
 DATA = jsonb_plpythonu--1.0.sql jsonb_plpython2u--1.0.sql
 
+REGRESS = jsonb_plpython
+REGRESS_PLPYTHON3_MANGLE := $(REGRESS)
+
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
@@ -28,4 +31,10 @@ rpathdir = $(python_libdir)
 SHLIB_LINK += $(python_libspec) $(python_additional_libs)
 endif
 
-#include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
+REGRESS_OPTS += --load-extension=jsonb
+ifeq ($(python_majorversion),2)
+REGRESS_OPTS += --load-extension=plpythonu --load-extension=jsonb_plpythonu
+endif
+EXTRA_INSTALL += contrib/jsonb
+
+include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
