@@ -12,4 +12,4 @@ $$;
 
 SELECT test1('{"a":1, "c":"NULL"}'::jsonb);
 
-
+DROP EXTENSION jsonb_plpython2u CASCADE;

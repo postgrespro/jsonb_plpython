@@ -18,20 +18,6 @@ typedef PyObject *(*PLyUnicode_FromStringAndSize_t) (const char *s, Py_ssize_t s
 static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
 #endif
 
-/* Linkage to functions in hstore module */
-/*typedef HStore *(*hstoreUpgrade_t) (Datum orig);
-static hstoreUpgrade_t hstoreUpgrade_p;
-typedef int (*hstoreUniquePairs_t) (Pairs *a, int32 l, int32 *buflen);
-static hstoreUniquePairs_t hstoreUniquePairs_p;
-typedef HStore *(*hstorePairs_t) (Pairs *pairs, int32 pcount, int32 buflen);
-static hstorePairs_t hstorePairs_p;
-typedef size_t (*hstoreCheckKeyLen_t) (size_t len);
-static hstoreCheckKeyLen_t hstoreCheckKeyLen_p;
-typedef size_t (*hstoreCheckValLen_t) (size_t len);
-static hstoreCheckValLen_t hstoreCheckValLen_p;
-*/
-/* Linkage to functions in jsonb module */
-
 /*
  * Module initialize function: fetch function pointers for cross-module calls.
  */
@@ -49,26 +35,6 @@ _PG_init(void)
 		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
 							   true, NULL);
 #endif
-/*	AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
-	hstoreUpgrade_p = (hstoreUpgrade_t)
-		load_external_function("$libdir/hstore", "hstoreUpgrade",
-							   true, NULL);
-	AssertVariableIsOfType(&hstoreUniquePairs, hstoreUniquePairs_t);
-	hstoreUniquePairs_p = (hstoreUniquePairs_t)
-		load_external_function("$libdir/hstore", "hstoreUniquePairs",
-							   true, NULL);
-	AssertVariableIsOfType(&hstorePairs, hstorePairs_t);
-	hstorePairs_p = (hstorePairs_t)
-		load_external_function("$libdir/hstore", "hstorePairs",
-							   true, NULL);
-	AssertVariableIsOfType(&hstoreCheckKeyLen, hstoreCheckKeyLen_t);
-	hstoreCheckKeyLen_p = (hstoreCheckKeyLen_t)
-		load_external_function("$libdir/hstore", "hstoreCheckKeyLen",
-							   true, NULL);
-	AssertVariableIsOfType(&hstoreCheckValLen, hstoreCheckValLen_t);
-	hstoreCheckValLen_p = (hstoreCheckValLen_t)
-		load_external_function("$libdir/hstore", "hstoreCheckValLen",
-							   true, NULL);*/
 }
 
 
@@ -109,6 +75,7 @@ PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_const
 			result = jsonbValue.val.boolean ? Py_True: Py_False;
 			break;
 		case jbvArray:
+			//TODO lol what is that?
 			result = PyString_FromStringAndSize("ValArr",6);
 			break;
 		case jbvObject:
@@ -125,7 +92,7 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 	JsonbIteratorToken r;
 	JsonbValue v;
 
-				object = PyDict_New();
+	object = PyDict_New();
 	it = JsonbIteratorInit(jsonb);
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
@@ -143,8 +110,6 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 				r = JsonbIteratorNext(&it, &v, true);
 				value = PyObject_FromJsonbValue(v,decimal_constructor);
 				PyDict_SetItem(object, key, value);
-				Py_XDECREF(value);
-				Py_XDECREF(key);
 				break;
 			case (WJB_BEGIN_ARRAY):
 				object = PyList_New(0);
@@ -156,8 +121,12 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 				return (object);
 				break;
 			default:
+				object = PyObject_FromJsonbValue(v, decimal_constructor);
+				return (object);
 				break;
 		}
+		Py_XDECREF(value);
+		Py_XDECREF(key);
 	}
 	return (object);
 }
