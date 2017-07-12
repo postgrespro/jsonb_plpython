@@ -39,7 +39,7 @@ void
 _PG_init(void)
 {
 	/* Asserts verify that typedefs above match original declarations */
-/*	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
+	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
 	PLyObject_AsString_p = (PLyObject_AsString_t)
 		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyObject_AsString",
 							   true, NULL);
@@ -49,7 +49,7 @@ _PG_init(void)
 		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
 							   true, NULL);
 #endif
-	AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
+/*	AssertVariableIsOfType(&hstoreUpgrade, hstoreUpgrade_t);
 	hstoreUpgrade_p = (hstoreUpgrade_t)
 		load_external_function("$libdir/hstore", "hstoreUpgrade",
 							   true, NULL);
@@ -76,8 +76,10 @@ _PG_init(void)
 #define PLyObject_AsString PLyObject_AsString_p
 #define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
 
+static
 PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
+static
 PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_constructor){
 	PyObject *result;
 	char *str;
@@ -109,10 +111,14 @@ PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_const
 		case jbvArray:
 			result = PyString_FromStringAndSize("ValArr",6);
 			break;
+		case jbvObject:
+			result = PyObject_FromJsonb(jsonbValue.val.binary.data, decimal_constructor);
+			break;
 	}
 	return (result);
 }
 
+static
 PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor){
 	PyObject   *object = Py_None;
 	JsonbIterator	*it;
@@ -157,7 +163,6 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 }
 
 PG_FUNCTION_INFO_V1(jsonb_to_plpython);
-
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
 {
@@ -181,7 +186,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	return PointerGetDatum(dict);
 }
 
-
+static
 JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 	volatile PyObject *items_v = NULL;
 	int32		pcount;
@@ -289,7 +294,6 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 }
 
 PG_FUNCTION_INFO_V1(plpython_to_jsonb);
-
 Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
