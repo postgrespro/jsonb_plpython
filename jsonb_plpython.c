@@ -93,7 +93,7 @@ PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_const
 		case jbvNumeric:
 			//TODO rewrite this
 			str = DatumGetCString(
-					DirectFunctionCall1(numeric_out, jsonbValue.val.numeric)
+					DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue.val.numeric))
 					);
 			result = PyObject_CallFunction(
 					decimal_constructor, "s", str
@@ -277,7 +277,7 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				JsonbValue jbvInt;
 				jbvInt.type = jbvNumeric;
 				jbvInt.val.numeric = DatumGetNumeric(
-						DirectFunctionCall1(numeric_in, PLyObject_AsString(obj))
+						DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj)))
 						);
 				out = &jbvInt;
 			}
