@@ -46,20 +46,20 @@ static
 PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
 static
-PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_constructor){
+PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor){
 	PyObject *result;
 	char *str;
-	switch (jsonbValue.type){
+	switch (jsonbValue->type){
 		case jbvNull:
 			result = Py_None;
 			break;
 		case jbvBinary:
-			result = PyObject_FromJsonb(jsonbValue.val.binary.data, decimal_constructor);
+			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
 			break;
 		case jbvNumeric:
 			//TODO rewrite this
 			str = DatumGetCString(
-					DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue.val.numeric))
+					DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue->val.numeric))
 					);
 			result = PyObject_CallFunction(
 					decimal_constructor, "s", str
@@ -67,19 +67,19 @@ PyObject *PyObject_FromJsonbValue(JsonbValue jsonbValue, PyObject *decimal_const
 			break;
 		case jbvString:
 			result = PyString_FromStringAndSize(
-					jsonbValue.val.string.val,
-					jsonbValue.val.string.len
+					jsonbValue->val.string.val,
+					jsonbValue->val.string.len
 					);
 			break;
 		case jbvBool:
-			result = jsonbValue.val.boolean ? Py_True: Py_False;
+			result = jsonbValue->val.boolean ? Py_True: Py_False;
 			break;
 		case jbvArray:
 			//TODO lol what is that?
 			result = PyString_FromStringAndSize("ValArr",6);
 			break;
 		case jbvObject:
-			result = PyObject_FromJsonb(jsonbValue.val.binary.data, decimal_constructor);
+			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
 			break;
 	}
 	return (result);
@@ -108,21 +108,24 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 						);
 
 				r = JsonbIteratorNext(&it, &v, true);
-				value = PyObject_FromJsonbValue(v,decimal_constructor);
+				value = PyObject_FromJsonbValue(&v,decimal_constructor);
 				PyDict_SetItem(object, key, value);
 				break;
 			case (WJB_BEGIN_ARRAY):
+				//TODO '1'::jsonb will also go here
 				object = PyList_New(0);
 				while (
 						((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
 						&&(r!=WJB_DONE)
 						)
-					PyList_Append(object, PyObject_FromJsonbValue(v, decimal_constructor));
+					PyList_Append(object, PyObject_FromJsonbValue(&v, decimal_constructor));
 				return (object);
 				break;
+			case (WJB_END_OBJECT):
+			case (WJB_BEGIN_OBJECT):
+				break;
 			default:
-				object = PyObject_FromJsonbValue(v, decimal_constructor);
-				return (object);
+				object = PyObject_FromJsonbValue(&v, decimal_constructor);
 				break;
 		}
 		Py_XDECREF(value);
@@ -150,19 +153,18 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 
 	dict = PyObject_FromJsonb(&in->root, decimal_constructor);
 
-	//TODO free allocated memory
 
 	return PointerGetDatum(dict);
 }
 
 static
 JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
-	volatile PyObject *items_v = NULL;
 	int32		pcount;
 	JsonbValue	   *out = NULL;
 
 	if(PyMapping_Check(obj)){
 		//DICT
+		volatile PyObject *items_v = NULL;
 		pcount = PyMapping_Size(obj);
 		items_v = PyMapping_Items(obj);
 
@@ -211,8 +213,18 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 		PG_END_TRY();
 	}
 	else
+		if(PyString_Check(obj)){
+			// STRING
+				JsonbValue	   *jbvElem;
+				jbvElem = palloc(sizeof(JsonbValue));
+				jbvElem->type = jbvString;
+				jbvElem->val.string.val = PLyObject_AsString(obj);
+				jbvElem->val.string.len = strlen(jbvElem->val.string.val);
+				out = jbvElem;
+		}
+		else
 		if(PySequence_Check(obj)){
-			//LIST
+			//LIST or STRING
 			JsonbValue	   *jbvElem;
 
 			pcount = PySequence_Size(obj);
@@ -226,7 +238,6 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				for (i = 0; i < pcount; i++)
 				{
 					PyObject   *value;
-
 					value = PySequence_GetItem(obj, i);
 					jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
 					if (IsAJsonbScalar(jbvElem))
@@ -243,21 +254,23 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 		else
 			if (PyNumber_Check(obj)){
 				// NUMERIC
-				JsonbValue jbvInt;
-				jbvInt.type = jbvNumeric;
-				jbvInt.val.numeric = DatumGetNumeric(
+				JsonbValue *jbvInt;
+				jbvInt = palloc(sizeof(JsonbValue));
+				jbvInt->type = jbvNumeric;
+				jbvInt->val.numeric = DatumGetNumeric(
 						DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj)))
 						);
-				out = &jbvInt;
+				out = jbvInt;
 			}
 			else
 			{
-				// STRING
-				JsonbValue	   jbvElem;
-				jbvElem.type=jbvString;
-				jbvElem.val.string.val = PLyObject_AsString(obj);
-				jbvElem.val.string.len = strlen(jbvElem.val.string.val);
-				out = &jbvElem;
+				// EVERYTHING ELSE
+				JsonbValue	   *jbvElem;
+				jbvElem = palloc(sizeof(JsonbValue));
+				jbvElem->type=jbvString;
+				jbvElem->val.string.val = PLyObject_AsString(obj);
+				jbvElem->val.string.len = strlen(jbvElem->val.string.val);
+				out = jbvElem;
 			}
 	return (out);
 }

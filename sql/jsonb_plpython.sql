@@ -70,35 +70,22 @@ CREATE FUNCTION test1int(val jsonb) RETURNS int
 LANGUAGE plpythonu
 TRANSFORM FOR TYPE jsonb
 AS $$
-assert isinstance(val, int)
-assert(val == 1)
+assert(val == [1])
 return len(val)
 $$;
 
 SELECT test1int('1'::jsonb);
 
--- test jsonb null -> python None
-CREATE FUNCTION test1null(val jsonb) RETURNS int
-LANGUAGE plpythonu
-TRANSFORM FOR TYPE jsonb
-AS $$
-assert(val == None)
-return len(val)
-$$;
-
-SELECT test1null(NULL::jsonb);
-
 -- test jsonb string -> python string
-CREATE FUNCTION test1null(val jsonb) RETURNS int
+CREATE FUNCTION test1string(val jsonb) RETURNS int
 LANGUAGE plpythonu
 TRANSFORM FOR TYPE jsonb
 AS $$
-assert isinstance(val string)
-assert(val == "a")
+assert(val == ["a"])
 return len(val)
 $$;
 
-SELECT test1null('"a"'::jsonb);
+SELECT test1string('"a"'::jsonb);
 
 
 DROP EXTENSION jsonb_plpythonu CASCADE;
