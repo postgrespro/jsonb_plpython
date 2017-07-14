@@ -1,5 +1,5 @@
 CREATE EXTENSION jsonb_plpython2u CASCADE;
--- test jsonb -> python
+-- test jsonb -> python dict
 CREATE FUNCTION test1(val jsonb) RETURNS int
 LANGUAGE plpython2u
 TRANSFORM FOR TYPE jsonb
@@ -15,3 +15,104 @@ INFO:  [('a', Decimal('1')), ('c', 'NULL')]
      2
 (1 row)
 
+-- test jsonb -> python dict
+-- complex dict with dicts as value
+CREATE FUNCTION test1complex(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert isinstance(val, dict)
+assert(val == {"d":{"d": 1}})
+return len(val)
+$$;
+SELECT test1complex('{"d":{"d": 1}}'::jsonb);
+ test1complex 
+--------------
+            1
+(1 row)
+
+-- test jsonb[] -> python dict
+-- dict with array as value
+CREATE FUNCTION test1arr(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert isinstance(val, dict)
+assert(val == {"d": [12,1]})
+return len(val)
+$$;
+SELECT test1arr('{"d":[12,1]}'::jsonb);
+ test1arr 
+----------
+        1
+(1 row)
+
+-- test jsonb[] -> python list
+-- simple list
+CREATE FUNCTION test2arr(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert isinstance(val, list)
+assert(val == [12,1])
+return len(val)
+$$;
+SELECT test2arr('[12,1]'::jsonb);
+ test2arr 
+----------
+        2
+(1 row)
+
+-- test jsonb[] -> python list
+-- array of dicts
+CREATE FUNCTION test3arr(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert isinstance(val, list)
+assert(val == [{"a":1,"b":2},{"c":3,"d":4}])
+return len(val)
+$$;
+SELECT test3arr('[{"a":1,"b":2},{"c":3,"d":4}]'::jsonb);
+ test3arr 
+----------
+        2
+(1 row)
+
+-- test jsonb int -> python int
+CREATE FUNCTION test1int(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert(val == [1])
+return len(val)
+$$;
+SELECT test1int('1'::jsonb);
+ test1int 
+----------
+        1
+(1 row)
+
+-- test jsonb string -> python string
+CREATE FUNCTION test1string(val jsonb) RETURNS int
+LANGUAGE plpython2u
+TRANSFORM FOR TYPE jsonb
+AS $$
+assert(val == ["a"])
+return len(val)
+$$;
+SELECT test1string('"a"'::jsonb);
+ test1string 
+-------------
+           1
+(1 row)
+
+DROP EXTENSION jsonb_plpython2u CASCADE;
+NOTICE:  drop cascades to 7 other objects
+DETAIL:  drop cascades to function test1(jsonb)
+drop cascades to function test1complex(jsonb)
+drop cascades to function test1arr(jsonb)
+drop cascades to function test2arr(jsonb)
+drop cascades to function test3arr(jsonb)
+drop cascades to function test1int(jsonb)
+drop cascades to function test1string(jsonb)
