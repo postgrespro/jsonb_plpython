@@ -1,13 +1,15 @@
-MODULE_big = jsonb_plpython
+MODULE_big = jsonb_plpython$(python_majorversion)
 OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
 
-EXTENSION = jsonb_plpythonu jsonb_plpython2u
-# DATA = jsonb_plpython--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
-DATA = jsonb_plpythonu--1.0.sql jsonb_plpython2u--1.0.sql
+EXTENSION = jsonb_plpython$(python_majorversion)
+# jsonb_plpython2u jsonb_plpython3u
+DATA = jsonb_plpython$(python_majorversion)u--1.0.sql
+# jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
 
-REGRESS = jsonb_plpython jsonb_plpython2
+REGRESS = jsonb_plpython$(python_majorversion)
+# jsonb_plpython2 jsonb_plpython3
 REGRESS_PLPYTHON3_MANGLE := $(REGRESS)
 
 ifdef USE_PGXS
@@ -31,10 +33,11 @@ rpathdir = $(python_libdir)
 SHLIB_LINK += $(python_libspec) $(python_additional_libs)
 endif
 
-REGRESS_OPTS += --load-extension=plpythonu
 ifeq ($(python_majorversion),2)
 REGRESS_OPTS += --load-extension=plpython2u
+else
+REGRESS_OPTS += --load-extension=plpython3u
 endif
 EXTRA_INSTALL += contrib/jsonb
 
-include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
+#include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk

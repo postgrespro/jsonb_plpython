@@ -88,4 +88,4 @@ $$;
 SELECT test1string('"a"'::jsonb);
 
 
-DROP EXTENSION jsonb_plpythonu CASCADE;
+DROP EXTENSION plpython cascade;
