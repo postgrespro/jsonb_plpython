@@ -107,9 +107,10 @@ SELECT test1string('"a"'::jsonb);
            1
 (1 row)
 
-DROP EXTENSION jsonb_plpython2u CASCADE;
-NOTICE:  drop cascades to 7 other objects
-DETAIL:  drop cascades to function test1(jsonb)
+DROP EXTENSION plpython2u CASCADE;
+NOTICE:  drop cascades to 8 other objects
+DETAIL:  drop cascades to extension jsonb_plpython2u
+drop cascades to function test1(jsonb)
 drop cascades to function test1complex(jsonb)
 drop cascades to function test1arr(jsonb)
 drop cascades to function test2arr(jsonb)

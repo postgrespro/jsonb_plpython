@@ -75,9 +75,6 @@ PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_cons
 			result = jsonbValue->val.boolean ? Py_True: Py_False;
 			break;
 		case jbvArray:
-			//TODO lol what is that?
-			result = PyString_FromStringAndSize("ValArr",6);
-			break;
 		case jbvObject:
 			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
 			break;
@@ -112,7 +109,6 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 				PyDict_SetItem(object, key, value);
 				break;
 			case (WJB_BEGIN_ARRAY):
-				//TODO '1'::jsonb will also go here
 				object = PyList_New(0);
 				while (
 						((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)

@@ -11,4 +11,3 @@ regression.out
 *.gcov
 tags
 cscope*
-hstore_plpython
