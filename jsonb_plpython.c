@@ -7,6 +7,40 @@
 
 PG_MODULE_MAGIC;
 
+extern void _PG_init(void);
+
+/* Linkage to functions in plpython module */
+typedef char *(*PLyObject_AsString_t) (PyObject *plrv);
+static PLyObject_AsString_t PLyObject_AsString_p;
+#if PY_MAJOR_VERSION >= 3
+typedef PyObject *(*PLyUnicode_FromStringAndSize_t) (const char *s, Py_ssize_t size);
+static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
+#endif
+
+/*
+ * Module initialize function: fetch function pointers for cross-module calls.
+ */
+void
+_PG_init(void)
+{
+	/* Asserts verify that typedefs above match original declarations */
+	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
+	PLyObject_AsString_p = (PLyObject_AsString_t)
+		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyObject_AsString",
+							   true, NULL);
+#if PY_MAJOR_VERSION >= 3
+	AssertVariableIsOfType(&PLyUnicode_FromStringAndSize, PLyUnicode_FromStringAndSize_t);
+	PLyUnicode_FromStringAndSize_p = (PLyUnicode_FromStringAndSize_t)
+		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
+							   true, NULL);
+#endif
+}
+
+
+/* These defines must be after the module init function */
+#define PLyObject_AsString PLyObject_AsString_p
+#define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
+
 static PyObject *
 PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
