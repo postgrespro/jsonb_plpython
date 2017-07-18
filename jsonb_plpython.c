@@ -7,48 +7,16 @@
 
 PG_MODULE_MAGIC;
 
-extern void _PG_init(void);
+static PyObject *
+PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
-/* Linkage to functions in plpython module */
-typedef char *(*PLyObject_AsString_t) (PyObject *plrv);
-static PLyObject_AsString_t PLyObject_AsString_p;
-#if PY_MAJOR_VERSION >= 3
-typedef PyObject *(*PLyUnicode_FromStringAndSize_t) (const char *s, Py_ssize_t size);
-static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
-#endif
-
-/*
- * Module initialize function: fetch function pointers for cross-module calls.
- */
-void
-_PG_init(void)
+static PyObject *
+PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
 {
-	/* Asserts verify that typedefs above match original declarations */
-	AssertVariableIsOfType(&PLyObject_AsString, PLyObject_AsString_t);
-	PLyObject_AsString_p = (PLyObject_AsString_t)
-		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyObject_AsString",
-							   true, NULL);
-#if PY_MAJOR_VERSION >= 3
-	AssertVariableIsOfType(&PLyUnicode_FromStringAndSize, PLyUnicode_FromStringAndSize_t);
-	PLyUnicode_FromStringAndSize_p = (PLyUnicode_FromStringAndSize_t)
-		load_external_function("$libdir/" PLPYTHON_LIBNAME, "PLyUnicode_FromStringAndSize",
-							   true, NULL);
-#endif
-}
-
-
-/* These defines must be after the module init function */
-#define PLyObject_AsString PLyObject_AsString_p
-#define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
-
-static
-PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
-
-static
-PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor){
 	PyObject *result;
 	char *str;
-	switch (jsonbValue->type){
+	switch (jsonbValue->type)
+	{
 		case jbvNull:
 			result = Py_None;
 			break;
@@ -56,6 +24,7 @@ PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_cons
 			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
 			break;
 		case jbvNumeric:
+			//XXX There should be a better way
 			str = DatumGetCString(
 					DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue->val.numeric))
 					);
@@ -80,8 +49,9 @@ PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_cons
 	return (result);
 }
 
-static
-PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor){
+static PyObject *
+PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
+{
 	PyObject   *object = Py_None;
 	JsonbIterator	*it;
 	JsonbIteratorToken r;
@@ -95,7 +65,8 @@ PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructo
 		PyObject   *key = Py_None;
 		PyObject *value = Py_None;
 
-		switch (r){
+		switch (r)
+		{
 			case (WJB_KEY):
 				key = PyString_FromStringAndSize(
 						v.val.string.val,
@@ -138,7 +109,8 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	PyObject *decimal_module;
 	PyObject *decimal_constructor;
 	decimal_module = PyImport_ImportModule("cdecimal");
-	if (!decimal_module){
+	if (!decimal_module)
+	{
 		PyErr_Clear();
 		decimal_module = PyImport_ImportModule("decimal");
 	}
@@ -150,12 +122,14 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	return PointerGetDatum(dict);
 }
 
-static
-JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
+static JsonbValue *
+PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
+{
 	int32		pcount;
 	JsonbValue	   *out = NULL;
 
-	if(PyMapping_Check(obj)){
+	if(PyMapping_Check(obj))
+	{
 		//DICT
 		volatile PyObject *items_v = NULL;
 		pcount = PyMapping_Size(obj);
@@ -180,7 +154,8 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				key = PyTuple_GetItem(tuple, 0);
 				value = PyTuple_GetItem(tuple, 1);
 
-				if (key == Py_None){
+				if (key == Py_None)
+				{
 					jbvKey.type = jbvString;
 					jbvKey.val.string.len = 0;
 					jbvKey.val.string.val = "";
@@ -206,7 +181,8 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 		PG_END_TRY();
 	}
 	else
-		if(PyString_Check(obj)){
+		if(PyString_Check(obj))
+		{
 			// STRING
 				JsonbValue	   *jbvElem;
 				jbvElem = palloc(sizeof(JsonbValue));
@@ -216,8 +192,10 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 				out = jbvElem;
 		}
 		else
-		if(PySequence_Check(obj)){
+		if(PySequence_Check(obj))
+		{
 			//LIST or STRING
+			//but we have checked on STRING
 			JsonbValue	   *jbvElem;
 
 			pcount = PySequence_Size(obj);
@@ -245,7 +223,8 @@ JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state){
 			PG_END_TRY();
 		}
 		else
-			if (PyNumber_Check(obj)){
+			if (PyNumber_Check(obj))
+			{
 				// NUMERIC
 				JsonbValue *jbvInt;
 				jbvInt = palloc(sizeof(JsonbValue));
