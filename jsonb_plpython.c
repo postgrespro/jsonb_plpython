@@ -1,6 +1,5 @@
 #include "postgres.h"
 
-//#include "fmgr.h"
 #include "plpython.h"
 #include "plpy_typeio.h"
 #include "jsonb.h"
@@ -57,7 +56,6 @@ PyObject *PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_cons
 			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
 			break;
 		case jbvNumeric:
-			//TODO rewrite this
 			str = DatumGetCString(
 					DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue->val.numeric))
 					);
@@ -279,12 +277,6 @@ plpython_to_jsonb(PG_FUNCTION_ARGS)
 	JsonbParseState *jsonb_state = NULL;
 
 	obj = (PyObject *) PG_GETARG_POINTER(0);
-	/*
-	if (!PySequence_check(obj))
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("not a Python sequence")));
-	*/
 	out = PyObject_ToJsonbValue(obj, jsonb_state);
 	PG_RETURN_POINTER(JsonbValueToJsonb(out));
 }
