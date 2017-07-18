@@ -1,6 +1,6 @@
 #include "postgres.h"
 
-#include "fmgr.h"
+//#include "fmgr.h"
 #include "plpython.h"
 #include "plpy_typeio.h"
 #include "jsonb.h"
@@ -137,7 +137,6 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	Jsonb	   *in = PG_GETARG_JSONB(0);
 
 	PyObject   *dict;
-	//TODO make next 2 variables GLOBAL!!!!
 	PyObject *decimal_module;
 	PyObject *decimal_constructor;
 	decimal_module = PyImport_ImportModule("cdecimal");

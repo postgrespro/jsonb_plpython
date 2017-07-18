@@ -1,15 +1,14 @@
-MODULE_big = jsonb_plpython$(python_majorversion)
+# contrib/hstore_plpython/Makefile
+
+MODULE_big = jsonb_plpython$(python_majorversion)u
 OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
 
-EXTENSION = jsonb_plpython$(python_majorversion)
-# jsonb_plpython2u jsonb_plpython3u
+EXTENSION = jsonb_plpython$(python_majorversion)u
 DATA = jsonb_plpython$(python_majorversion)u--1.0.sql
-# jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
 
 REGRESS = jsonb_plpython$(python_majorversion)
-# jsonb_plpython2 jsonb_plpython3
 REGRESS_PLPYTHON3_MANGLE := $(REGRESS)
 
 ifdef USE_PGXS

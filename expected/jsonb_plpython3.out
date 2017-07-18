@@ -1,7 +1,7 @@
-CREATE EXTENSION jsonb_plpython2u CASCADE;
+CREATE EXTENSION jsonb_plpython3u CASCADE;
 -- test jsonb -> python dict
 CREATE FUNCTION test1(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert isinstance(val, dict)
@@ -18,7 +18,7 @@ INFO:  [('a', Decimal('1')), ('c', 'NULL')]
 -- test jsonb -> python dict
 -- complex dict with dicts as value
 CREATE FUNCTION test1complex(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert isinstance(val, dict)
@@ -34,7 +34,7 @@ SELECT test1complex('{"d":{"d": 1}}'::jsonb);
 -- test jsonb[] -> python dict
 -- dict with array as value
 CREATE FUNCTION test1arr(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert isinstance(val, dict)
@@ -50,7 +50,7 @@ SELECT test1arr('{"d":[12,1]}'::jsonb);
 -- test jsonb[] -> python list
 -- simple list
 CREATE FUNCTION test2arr(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert isinstance(val, list)
@@ -66,7 +66,7 @@ SELECT test2arr('[12,1]'::jsonb);
 -- test jsonb[] -> python list
 -- array of dicts
 CREATE FUNCTION test3arr(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert isinstance(val, list)
@@ -81,7 +81,7 @@ SELECT test3arr('[{"a":1,"b":2},{"c":3,"d":4}]'::jsonb);
 
 -- test jsonb int -> python int
 CREATE FUNCTION test1int(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert(val == [1])
@@ -95,7 +95,7 @@ SELECT test1int('1'::jsonb);
 
 -- test jsonb string -> python string
 CREATE FUNCTION test1string(val jsonb) RETURNS int
-LANGUAGE plpython2u
+LANGUAGE plpython3u
 TRANSFORM FOR TYPE jsonb
 AS $$
 assert(val == ["a"])
@@ -107,9 +107,10 @@ SELECT test1string('"a"'::jsonb);
            1
 (1 row)
 
-DROP EXTENSION jsonb_plpython2u CASCADE;
-NOTICE:  drop cascades to 7 other objects
-DETAIL:  drop cascades to function test1(jsonb)
+DROP EXTENSION plpython3u CASCADE;
+NOTICE:  drop cascades to 8 other objects
+DETAIL:  drop cascades to extension jsonb_plpython3u
+drop cascades to function test1(jsonb)
 drop cascades to function test1complex(jsonb)
 drop cascades to function test1arr(jsonb)
 drop cascades to function test2arr(jsonb)
