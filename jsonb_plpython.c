@@ -2,8 +2,9 @@
 
 #include "plpython.h"
 #include "plpy_typeio.h"
-#include "jsonb.h"
-#include "fmgrprotos.h"
+
+#include "utils/jsonb.h"
+#include "utils/fmgrprotos.h"
 
 PG_MODULE_MAGIC;
 

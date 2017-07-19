@@ -1,10 +1,10 @@
-# contrib/hstore_plpython/Makefile
+# contrib/jsonb_plpython/Makefile
 
 MODULE_big = jsonb_plpython$(python_majorversion)u
 OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
-PG_CPPFLAGS = -I$(top_srcdir)/src/pl/plpython -I$(top_srcdir)/src/include/utils $(python_includespec) $(CPPFLAGS) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
+PG_CPPFLAGS = -I$(top_srcdir)/src/pl/plpython $(python_includespec) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
 
 EXTENSION = jsonb_plpython$(python_majorversion)u
 DATA = jsonb_plpython$(python_majorversion)u--1.0.sql
@@ -38,5 +38,3 @@ else
 REGRESS_OPTS += --load-extension=plpython3u
 endif
 EXTRA_INSTALL += contrib/jsonb
-
-#include $(top_srcdir)/src/pl/plpython/regress-python3-mangle.mk
