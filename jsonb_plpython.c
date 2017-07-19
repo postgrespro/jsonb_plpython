@@ -44,11 +44,14 @@ _PG_init(void)
 static PyObject *
 PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
 
+static JsonbValue *
+PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state);
+
 static PyObject *
 PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
 {
-	PyObject *result;
-	char *str;
+	PyObject	*result;
+	char		*str;
 	switch (jsonbValue->type)
 	{
 		case jbvNull:
@@ -86,18 +89,18 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
 static PyObject *
 PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
 {
-	PyObject   *object = Py_None;
-	JsonbIterator	*it;
-	JsonbIteratorToken r;
-	JsonbValue v;
+	PyObject		   *object = Py_None;
+	JsonbIterator	   *it;
+	JsonbIteratorToken	r;
+	JsonbValue			v;
 
 	object = PyDict_New();
 	it = JsonbIteratorInit(jsonb);
 
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
-		PyObject   *key = Py_None;
-		PyObject *value = Py_None;
+		PyObject	*key = Py_None;
+		PyObject	*value = Py_None;
 
 		switch (r)
 		{
@@ -137,11 +140,15 @@ PG_FUNCTION_INFO_V1(jsonb_to_plpython);
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
 {
-	Jsonb	   *in = PG_GETARG_JSONB(0);
-
+	Jsonb	   *in;
 	PyObject   *dict;
-	PyObject *decimal_module;
-	PyObject *decimal_constructor;
+	PyObject   *decimal_module;
+	PyObject   *decimal_constructor;
+
+	in = PG_GETARG_JSONB(0);
+
+	// Import python cdecimal library and if there is no cdecimal library,
+	// import decimal library
 	decimal_module = PyImport_ImportModule("cdecimal");
 	if (!decimal_module)
 	{
@@ -151,126 +158,163 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
 
 	dict = PyObject_FromJsonb(&in->root, decimal_constructor);
-
-
 	return PointerGetDatum(dict);
 }
+
+static JsonbValue*
+PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
+{
+	volatile PyObject  *items_v = NULL;
+	int32				pcount;
+	JsonbValue	       *out = NULL;
+
+	pcount = PyMapping_Size(obj);
+	items_v = PyMapping_Items(obj);
+
+	PG_TRY();
+	{
+		int32		i;
+		PyObject   *items;
+		JsonbValue *jbvValue;
+		JsonbValue  jbvKey;
+
+		items = (PyObject *) items_v;
+		pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
+
+		for (i = 0; i < pcount; i++)
+		{
+			PyObject   *tuple;
+			PyObject   *key;
+			PyObject   *value;
+
+			tuple = PyList_GetItem(items, i);
+			key = PyTuple_GetItem(tuple, 0);
+			value = PyTuple_GetItem(tuple, 1);
+
+			if (key == Py_None)
+			{
+				jbvKey.type = jbvString;
+				jbvKey.val.string.len = 0;
+				jbvKey.val.string.val = "";
+			}
+			else{
+				jbvKey.type = jbvString;
+				jbvKey.val.string.val = PLyObject_AsString(key);
+				jbvKey.val.string.len = strlen(jbvKey.val.string.val);
+			}
+			pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
+			jbvValue = PyObject_ToJsonbValue(value, jsonb_state);
+			if (IsAJsonbScalar(jbvValue))
+				pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
+		}
+		out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
+	}
+	PG_CATCH();
+	{
+		Py_DECREF(items_v);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	return(out);
+}
+
+static JsonbValue *
+PyString_ToJsonbValue(PyObject *obj)
+{
+	JsonbValue	   *out = NULL;
+	JsonbValue	   *jbvElem;
+
+	jbvElem = palloc(sizeof(JsonbValue));
+	jbvElem->type = jbvString;
+	jbvElem->val.string.val = PLyObject_AsString(obj);
+	jbvElem->val.string.len = strlen(jbvElem->val.string.val);
+	out = jbvElem;
+
+	return(out);
+}
+
+static JsonbValue *
+PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
+{
+	JsonbValue	   *jbvElem;
+	JsonbValue	   *out = NULL;
+	int32			pcount;
+
+	pcount = PySequence_Size(obj);
+
+	PG_TRY();
+	{
+		int32		i;
+
+		pushJsonbValue(&jsonb_state,WJB_BEGIN_ARRAY, NULL);
+
+		for (i = 0; i < pcount; i++)
+		{
+			PyObject   *value;
+			value = PySequence_GetItem(obj, i);
+			jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
+			if (IsAJsonbScalar(jbvElem))
+				pushJsonbValue(&jsonb_state,WJB_ELEM,jbvElem);
+		}
+		out = pushJsonbValue(&jsonb_state,WJB_END_ARRAY, NULL);
+	}
+	PG_CATCH();
+	{
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+	return(out);
+}
+
+static JsonbValue *
+PyNumeric_ToJsonbValue(PyObject *obj)
+{
+	JsonbValue	   *out = NULL;
+	JsonbValue	   *jbvInt;
+
+	jbvInt = palloc(sizeof(JsonbValue));
+	jbvInt->type = jbvNumeric;
+	jbvInt->val.numeric = DatumGetNumeric(
+			DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj)))
+			);
+	out = jbvInt;
+	return(out);
+}
+
 
 static JsonbValue *
 PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 {
-	int32		pcount;
 	JsonbValue	   *out = NULL;
 
 	if(PyMapping_Check(obj))
 	{
 		//DICT
-		volatile PyObject *items_v = NULL;
-		pcount = PyMapping_Size(obj);
-		items_v = PyMapping_Items(obj);
-
-		PG_TRY();
-		{
-			int32		i;
-			PyObject   *items = (PyObject *) items_v;
-			JsonbValue	   *jbvValue;
-			JsonbValue	   jbvKey;
-
-			pushJsonbValue(&jsonb_state,WJB_BEGIN_OBJECT, NULL);
-
-			for (i = 0; i < pcount; i++)
-			{
-				PyObject   *tuple;
-				PyObject   *key;
-				PyObject   *value;
-
-				tuple = PyList_GetItem(items, i);
-				key = PyTuple_GetItem(tuple, 0);
-				value = PyTuple_GetItem(tuple, 1);
-
-				if (key == Py_None)
-				{
-					jbvKey.type = jbvString;
-					jbvKey.val.string.len = 0;
-					jbvKey.val.string.val = "";
-				}
-				else{
-					jbvKey.type = jbvString;
-					jbvKey.val.string.val = PLyObject_AsString(key);
-					jbvKey.val.string.len = strlen(jbvKey.val.string.val);
-				}
-				pushJsonbValue(&jsonb_state,WJB_KEY,&jbvKey);
-				jbvValue = PyObject_ToJsonbValue(value, jsonb_state);
-				if (IsAJsonbScalar(jbvValue))
-					pushJsonbValue(&jsonb_state,WJB_VALUE,jbvValue);
+		out = PyMapping_ToJsonbValue(obj, jsonb_state);
 			}
-
-			out = pushJsonbValue(&jsonb_state,WJB_END_OBJECT, NULL);
-		}
-		PG_CATCH();
-		{
-			Py_DECREF(items_v);
-			PG_RE_THROW();
-		}
-		PG_END_TRY();
-	}
 	else
 		if(PyString_Check(obj))
 		{
 			// STRING
-				JsonbValue	   *jbvElem;
-				jbvElem = palloc(sizeof(JsonbValue));
-				jbvElem->type = jbvString;
-				jbvElem->val.string.val = PLyObject_AsString(obj);
-				jbvElem->val.string.len = strlen(jbvElem->val.string.val);
-				out = jbvElem;
+			out = PyString_ToJsonbValue(obj);
 		}
 		else
 		if(PySequence_Check(obj))
 		{
 			//LIST or STRING
 			//but we have checked on STRING
-			JsonbValue	   *jbvElem;
-
-			pcount = PySequence_Size(obj);
-
-			PG_TRY();
-			{
-				int32		i;
-
-				pushJsonbValue(&jsonb_state,WJB_BEGIN_ARRAY, NULL);
-
-				for (i = 0; i < pcount; i++)
-				{
-					PyObject   *value;
-					value = PySequence_GetItem(obj, i);
-					jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
-					if (IsAJsonbScalar(jbvElem))
-						pushJsonbValue(&jsonb_state,WJB_ELEM,jbvElem);
-				}
-				out = pushJsonbValue(&jsonb_state,WJB_END_ARRAY, NULL);
-			}
-			PG_CATCH();
-			{
-				PG_RE_THROW();
-			}
-			PG_END_TRY();
+			out = PySequence_ToJsonbValue(obj, jsonb_state);
 		}
 		else
 			if (PyNumber_Check(obj))
 			{
 				// NUMERIC
-				JsonbValue *jbvInt;
-				jbvInt = palloc(sizeof(JsonbValue));
-				jbvInt->type = jbvNumeric;
-				jbvInt->val.numeric = DatumGetNumeric(
-						DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj)))
-						);
-				out = jbvInt;
+				out = PyNumeric_ToJsonbValue(obj);
 			}
 			else
 			{
 				// EVERYTHING ELSE
+				// Handle it as it's repr
 				JsonbValue	   *jbvElem;
 				jbvElem = palloc(sizeof(JsonbValue));
 				jbvElem->type=jbvString;
@@ -285,8 +329,8 @@ PG_FUNCTION_INFO_V1(plpython_to_jsonb);
 Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
 {
-	PyObject   *obj;
-	JsonbValue	   *out;
+	PyObject		*obj;
+	JsonbValue		*out;
 	JsonbParseState *jsonb_state = NULL;
 
 	obj = (PyObject *) PG_GETARG_POINTER(0);
