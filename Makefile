@@ -4,6 +4,7 @@ MODULE_big = jsonb_plpython$(python_majorversion)u
 OBJS = jsonb_plpython.o $(WIN32RES)
 PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
+PG_CPPFLAGS = -I$(top_srcdir)/src/pl/plpython -I$(top_srcdir)/src/include/utils $(python_includespec) $(CPPFLAGS) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
 
 EXTENSION = jsonb_plpython$(python_majorversion)u
 DATA = jsonb_plpython$(python_majorversion)u--1.0.sql
@@ -15,7 +16,6 @@ ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-override CPPFLAGS := -I$(top_srcdir)/src/pl/plpython/ -I$(top_srcdir)/src/include/utils/ $(python_includespec) $(CPPFLAGS) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
 else
 subdir = contrib/jsonb_plpython
 top_builddir = ../..
