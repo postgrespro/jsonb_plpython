@@ -42,12 +42,22 @@ _PG_init(void)
 #define PLyObject_AsString PLyObject_AsString_p
 #define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
 
-static PyObject *PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor);
+/*
+ * decimal_constructor is a link to Python library for transforming strings into python decimal type
+ * */
+static PyObject *decimal_constructor;
+
+static PyObject *PyObject_FromJsonb(JsonbContainer *jsonb);
 
 static JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state);
 
+/*
+ * PyObject_FromJsonbValue(JsonsValue *jsonbValue)
+ * function for transforming JsonbValue type into Python Object
+ * The only argument defines the JsonbValue which will be transformed into PyObject
+ * */
 static PyObject *
-PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
+PyObject_FromJsonbValue(JsonbValue *jsonbValue)
 {
 	PyObject   *result;
 	char	   *str;
@@ -58,16 +68,19 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
 			result = Py_None;
 			break;
 		case jbvBinary:
-			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
+			result = PyObject_FromJsonb(jsonbValue->val.binary.data);
 			break;
 		case jbvNumeric:
-			/* XXX There should be a better way */
+
+			/*
+			 * XXX There should be a better way. Right now Numeric is
+			 * transformed into string and then this string is parsed into py
+			 * numeric
+			 */
 			str = DatumGetCString(
 								  DirectFunctionCall1(numeric_out, NumericGetDatum(jsonbValue->val.numeric))
 				);
-			result = PyObject_CallFunction(
-										   decimal_constructor, "s", str
-				);
+			result = PyObject_CallFunction(decimal_constructor, "s", str);
 			break;
 		case jbvString:
 			result = PyString_FromStringAndSize(
@@ -80,14 +93,20 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue, PyObject *decimal_constructor)
 			break;
 		case jbvArray:
 		case jbvObject:
-			result = PyObject_FromJsonb(jsonbValue->val.binary.data, decimal_constructor);
+			result = PyObject_FromJsonb(jsonbValue->val.binary.data);
 			break;
 	}
 	return (result);
 }
 
+/*
+ * PyObject_FromJsonb(JsonbContainer *jsonb)
+ * function for transforming JsonbContainer(jsonb) into PyObject
+ * The only argument should represent the data for transformation.
+ * */
+
 static PyObject *
-PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
+PyObject_FromJsonb(JsonbContainer *jsonb)
 {
 	PyObject   *object = Py_None;
 	JsonbIterator *it;
@@ -111,23 +130,26 @@ PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
 					);
 
 				r = JsonbIteratorNext(&it, &v, true);
-				value = PyObject_FromJsonbValue(&v, decimal_constructor);
+				value = PyObject_FromJsonbValue(&v);
 				PyDict_SetItem(object, key, value);
 				break;
 			case (WJB_BEGIN_ARRAY):
+				/* array in v */
 				object = PyList_New(0);
 				while (
 					   ((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
 					   && (r != WJB_DONE)
 					)
-					PyList_Append(object, PyObject_FromJsonbValue(&v, decimal_constructor));
+					PyList_Append(object, PyObject_FromJsonbValue(&v));
 				return (object);
 				break;
 			case (WJB_END_OBJECT):
 			case (WJB_BEGIN_OBJECT):
+				/* no object are in v */
 				break;
 			default:
-				object = PyObject_FromJsonbValue(&v, decimal_constructor);
+				/* simple objects */
+				object = PyObject_FromJsonbValue(&v);
 				break;
 		}
 		Py_XDECREF(value);
@@ -136,6 +158,13 @@ PyObject_FromJsonb(JsonbContainer *jsonb, PyObject *decimal_constructor)
 	return (object);
 }
 
+/*
+ * jsonb_to_plpython(Jsonb *in)
+ * Function to transform jsonb object to corresponding python object.
+ * The first argument is the Jsonb object to be transformed.
+ * Return value is the pointer to Python object.
+ * */
+
 PG_FUNCTION_INFO_V1(jsonb_to_plpython);
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
@@ -143,24 +172,31 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	Jsonb	   *in;
 	PyObject   *dict;
 	PyObject   *decimal_module;
-	PyObject   *decimal_constructor;
 
 	in = PG_GETARG_JSONB(0);
 
 	/* Import python cdecimal library and if there is no cdecimal library, */
 	/* import decimal library */
-	decimal_module = PyImport_ImportModule("cdecimal");
-	if (!decimal_module)
+	if (!decimal_constructor)
 	{
-		PyErr_Clear();
-		decimal_module = PyImport_ImportModule("decimal");
+		decimal_module = PyImport_ImportModule("cdecimal");
+		if (!decimal_module)
+		{
+			PyErr_Clear();
+			decimal_module = PyImport_ImportModule("decimal");
+		}
+		decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
 	}
-	decimal_constructor = PyObject_GetAttrString(decimal_module, "Decimal");
 
-	dict = PyObject_FromJsonb(&in->root, decimal_constructor);
+	dict = PyObject_FromJsonb(&in->root);
 	return PointerGetDatum(dict);
 }
 
+
+/*
+ * PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
+ * Function to transform Python lists to jsonbValue
+ * */
 static JsonbValue *
 PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 {
@@ -276,9 +312,7 @@ PyNumeric_ToJsonbValue(PyObject *obj)
 
 	jbvInt = palloc(sizeof(JsonbValue));
 	jbvInt->type = jbvNumeric;
-	jbvInt->val.numeric = DatumGetNumeric(
-										  DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj)))
-		);
+	jbvInt->val.numeric = DatumGetNumeric(DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj))));
 	out = jbvInt;
 	return (out);
 }
