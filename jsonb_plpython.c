@@ -255,6 +255,12 @@ PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 	return (out);
 }
 
+/*
+ * PyString_ToJsonbValue(PyObject *obj)
+ * Function to transform python string object to jsonbValue object.
+ * The first argument is the Python String object to be transformed.
+ * Return value is the pointer to JsonbValue structure containing the String.
+ * */
 static JsonbValue *
 PyString_ToJsonbValue(PyObject *obj)
 {
@@ -270,6 +276,13 @@ PyString_ToJsonbValue(PyObject *obj)
 	return (out);
 }
 
+/*
+ * PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
+ * Function to transform python lists to jsonbValue object.
+ * The first argument is the Python list to be transformed.
+ * The second one is TODO findout propriate words to describe jsonb_state
+ * Return value is the pointer to JsonbValue structure containing array.
+ * */
 static JsonbValue *
 PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 {
@@ -304,6 +317,12 @@ PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 	return (out);
 }
 
+/*
+ * PyNumeric_ToJsonbValue(PyObject *obj)
+ * Function to transform python numerics to jsonbValue object.
+ * The first argument is the Python numeric object to be transformed.
+ * Return value is the pointer to JsonbValue structure containing the String.
+ * */
 static JsonbValue *
 PyNumeric_ToJsonbValue(PyObject *obj)
 {
@@ -312,12 +331,20 @@ PyNumeric_ToJsonbValue(PyObject *obj)
 
 	jbvInt = palloc(sizeof(JsonbValue));
 	jbvInt->type = jbvNumeric;
-	jbvInt->val.numeric = DatumGetNumeric(DirectFunctionCall1(numeric_in, CStringGetDatum(PLyObject_AsString(obj))));
+	jbvInt->val.numeric = DatumGetNumeric(DirectFunctionCall1(
+															  numeric_in,
+															  CStringGetDatum(PLyObject_AsString(obj))
+															  ));
 	out = jbvInt;
 	return (out);
 }
 
-
+/*
+ * PyObject_ToJsonbValue(PyObject *obj)
+ * Function to transform python objects to jsonbValue object.
+ * The first argument is the Python object to be transformed.
+ * Return value is the pointer to JsonbValue structure containing the transformed object.
+ * */
 static JsonbValue *
 PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 {
@@ -359,6 +386,12 @@ PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 	return (out);
 }
 
+/*
+ * plpython_to_jsonb(PyObject *obj)
+ * Function to transform python objects to jsonb object.
+ * The first argument is the Python object to be transformed.
+ * Return value is the pointer to Jsonb structure containing the transformed object.
+ * */
 PG_FUNCTION_INFO_V1(plpython_to_jsonb);
 Datum
 plpython_to_jsonb(PG_FUNCTION_ARGS)
