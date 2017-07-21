@@ -1,3 +1,14 @@
+/* This document contains an implementation of transformations from python
+ * object to jsonb and vise versa.
+ * In this file you can find implementation of transformations:
+ * - JsonbValue transformation in  PyObject_FromJsonbValue
+ * - JsonbContainer(jsonb) transformation in PyObject_FromJsonb
+ * - PyMapping object(dict) transformation in PyMapping_ToJsonbValue
+ * - PyString object transformation in PyString_ToJsonbValue
+ * - PySequence object(list) transformation in PySequence_ToJsonbValue
+ * - PyNumeric object transformation in PyNumeric_ToJsonbValue
+ * - PyMapping object transformation in PyObject_ToJsonbValue
+ * */
 #include "postgres.h"
 
 #include "plpython.h"
@@ -43,18 +54,19 @@ _PG_init(void)
 #define PLyUnicode_FromStringAndSize PLyUnicode_FromStringAndSize_p
 
 /*
- * decimal_constructor is a link to Python library for transforming strings into python decimal type
+ * decimal_constructor is a link to Python library
+ * for transforming strings into python decimal type
  * */
 static PyObject *decimal_constructor;
 
 static PyObject *PyObject_FromJsonb(JsonbContainer *jsonb);
-
 static JsonbValue *PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state);
 
 /*
  * PyObject_FromJsonbValue(JsonsValue *jsonbValue)
- * function for transforming JsonbValue type into Python Object
- * The only argument defines the JsonbValue which will be transformed into PyObject
+ * Function for transforming JsonbValue type into Python Object
+ * The first argument defines the JsonbValue which will be transformed into PyObject
+ * Return value is the pointer to Jsonb structure containing the transformed object.
  * */
 static PyObject *
 PyObject_FromJsonbValue(JsonbValue *jsonbValue)
@@ -101,8 +113,9 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue)
 
 /*
  * PyObject_FromJsonb(JsonbContainer *jsonb)
- * function for transforming JsonbContainer(jsonb) into PyObject
- * The only argument should represent the data for transformation.
+ * Function for transforming JsonbContainer(jsonb) into PyObject
+ * The first argument should represent the data for transformation.
+ * Return value is the pointer to Python object.
  * */
 
 static PyObject *
@@ -162,13 +175,13 @@ PyObject_FromJsonb(JsonbContainer *jsonb)
 	return (object);
 }
 
+
 /*
  * jsonb_to_plpython(Jsonb *in)
  * Function to transform jsonb object to corresponding python object.
  * The first argument is the Jsonb object to be transformed.
  * Return value is the pointer to Python object.
  * */
-
 PG_FUNCTION_INFO_V1(jsonb_to_plpython);
 Datum
 jsonb_to_plpython(PG_FUNCTION_ARGS)
@@ -286,7 +299,7 @@ PyString_ToJsonbValue(PyObject *obj)
  * PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
  * Function to transform python lists to jsonbValue object.
  * The first argument is the Python list to be transformed.
- * The second one is TODO findout propriate words to describe jsonb_state
+ * The second one is conversion state.
  * Return value is the pointer to JsonbValue structure containing array.
  * */
 static JsonbValue *
