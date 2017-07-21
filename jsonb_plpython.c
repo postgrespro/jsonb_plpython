@@ -116,6 +116,9 @@ PyObject_FromJsonb(JsonbContainer *jsonb)
 	object = PyDict_New();
 	it = JsonbIteratorInit(jsonb);
 
+	/*
+	 * Iterate trhrough Jsonb object.
+	 */
 	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
 	{
 		PyObject   *key = Py_None;
@@ -124,6 +127,7 @@ PyObject_FromJsonb(JsonbContainer *jsonb)
 		switch (r)
 		{
 			case (WJB_KEY):
+				/* dict key in v */
 				key = PyString_FromStringAndSize(
 												 v.val.string.val,
 												 v.val.string.len
@@ -196,6 +200,8 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 /*
  * PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
  * Function to transform Python lists to jsonbValue
+ * The first argument is the python object to be transformed.
+ * Return value is the pointer to JsonbValue structure containing the list.
  * */
 static JsonbValue *
 PyMapping_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
@@ -292,28 +298,20 @@ PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 
 	pcount = PySequence_Size(obj);
 
-	PG_TRY();
+	int32		i;
+
+	pushJsonbValue(&jsonb_state, WJB_BEGIN_ARRAY, NULL);
+
+	for (i = 0; i < pcount; i++)
 	{
-		int32		i;
+		PyObject   *value;
 
-		pushJsonbValue(&jsonb_state, WJB_BEGIN_ARRAY, NULL);
-
-		for (i = 0; i < pcount; i++)
-		{
-			PyObject   *value;
-
-			value = PySequence_GetItem(obj, i);
-			jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
-			if (IsAJsonbScalar(jbvElem))
-				pushJsonbValue(&jsonb_state, WJB_ELEM, jbvElem);
-		}
-		out = pushJsonbValue(&jsonb_state, WJB_END_ARRAY, NULL);
+		value = PySequence_GetItem(obj, i);
+		jbvElem = PyObject_ToJsonbValue(value, jsonb_state);
+		if (IsAJsonbScalar(jbvElem))
+			pushJsonbValue(&jsonb_state, WJB_ELEM, jbvElem);
 	}
-	PG_CATCH();
-	{
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	out = pushJsonbValue(&jsonb_state, WJB_END_ARRAY, NULL);
 	return (out);
 }
 
