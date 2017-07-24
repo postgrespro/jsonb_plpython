@@ -37,4 +37,3 @@ REGRESS_OPTS += --load-extension=plpython2u
 else
 REGRESS_OPTS += --load-extension=plpython3u
 endif
-EXTRA_INSTALL += contrib/jsonb

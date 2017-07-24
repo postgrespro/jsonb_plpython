@@ -308,10 +308,10 @@ PySequence_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 	JsonbValue *jbvElem;
 	JsonbValue *out = NULL;
 	int32		pcount;
+	int32		i;
 
 	pcount = PySequence_Size(obj);
 
-	int32		i;
 
 	pushJsonbValue(&jsonb_state, WJB_BEGIN_ARRAY, NULL);
 
