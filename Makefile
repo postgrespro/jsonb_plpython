@@ -6,10 +6,10 @@ PGFILEDESC = "jsonb_plpython - transform between jsonb and plpythonu"
 
 PG_CPPFLAGS = -I$(top_srcdir)/src/pl/plpython $(python_includespec) -DPLPYTHON_LIBNAME='"plpython$(python_majorversion)"'
 
-EXTENSION = jsonb_plpython$(python_majorversion)u
-DATA = jsonb_plpython$(python_majorversion)u--1.0.sql
+EXTENSION = jsonb_plpythonu jsonb_plpython2u jsonb_plpython3u
+DATA = jsonb_plpythonu--1.0.sql jsonb_plpython2u--1.0.sql jsonb_plpython3u--1.0.sql
 
-REGRESS = jsonb_plpython$(python_majorversion)
+REGRESS = jsonb_plpython$(python_majorversion)u jsonb_plpython$(python_majorversion)u_relocatability
 REGRESS_PLPYTHON3_MANGLE := $(REGRESS)
 
 ifdef USE_PGXS

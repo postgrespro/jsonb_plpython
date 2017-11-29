@@ -24,6 +24,7 @@ extern void _PG_init(void);
 /* Linkage to functions in plpython module */
 typedef char *(*PLyObject_AsString_t) (PyObject *plrv);
 static PLyObject_AsString_t PLyObject_AsString_p;
+
 #if PY_MAJOR_VERSION >= 3
 typedef PyObject *(*PLyUnicode_FromStringAndSize_t) (const char *s, Py_ssize_t size);
 static PLyUnicode_FromStringAndSize_t PLyUnicode_FromStringAndSize_p;
@@ -107,6 +108,9 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue)
 		case jbvObject:
 			result = PyObject_FromJsonb(jsonbValue->val.binary.data);
 			break;
+		default:
+			pg_unreachable();
+			break;
 	}
 	return (result);
 }
@@ -121,56 +125,53 @@ PyObject_FromJsonbValue(JsonbValue *jsonbValue)
 static PyObject *
 PyObject_FromJsonb(JsonbContainer *jsonb)
 {
-	PyObject   *object = Py_None;
+	PyObject   *object;
+	PyObject   *key;
+	PyObject   *value;
+
 	JsonbIterator *it;
 	JsonbIteratorToken r;
 	JsonbValue	v;
 
-	object = PyDict_New();
 	it = JsonbIteratorInit(jsonb);
 
-	/*
-	 * Iterate trhrough Jsonb object.
-	 */
-	while ((r = JsonbIteratorNext(&it, &v, true)) != WJB_DONE)
-	{
-		PyObject   *key = Py_None;
-		PyObject   *value = Py_None;
+	r = JsonbIteratorNext(&it, &v, true);
 
-		switch (r)
-		{
-			case (WJB_KEY):
-				/* dict key in v */
+	switch (r)
+	{
+		case (WJB_BEGIN_ARRAY):
+			if (v.val.array.rawScalar)
+			{
+				r = JsonbIteratorNext(&it, &v, true);
+				object = PyObject_FromJsonbValue(&v);
+			}
+			else
+			{
+				/* array in v */
+				object = PyList_New(0);
+				while ((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
+					PyList_Append(object, PyObject_FromJsonbValue(&v));
+			}
+			break;
+		case (WJB_BEGIN_OBJECT):
+			object = PyDict_New();
+			while ((r = JsonbIteratorNext(&it, &v, true)) == WJB_KEY)
+			{
 				key = PyString_FromStringAndSize(
 												 v.val.string.val,
 												 v.val.string.len
 					);
-
 				r = JsonbIteratorNext(&it, &v, true);
 				value = PyObject_FromJsonbValue(&v);
 				PyDict_SetItem(object, key, value);
-				break;
-			case (WJB_BEGIN_ARRAY):
-				/* array in v */
-				object = PyList_New(0);
-				while (
-					   ((r = JsonbIteratorNext(&it, &v, true)) == WJB_ELEM)
-					   && (r != WJB_DONE)
-					)
-					PyList_Append(object, PyObject_FromJsonbValue(&v));
-				return (object);
-				break;
-			case (WJB_END_OBJECT):
-			case (WJB_BEGIN_OBJECT):
-				/* no object are in v */
-				break;
-			default:
-				/* simple objects */
-				object = PyObject_FromJsonbValue(&v);
-				break;
-		}
-		Py_XDECREF(value);
-		Py_XDECREF(key);
+			}
+			break;
+		case (WJB_END_OBJECT):
+			pg_unreachable();
+			break;
+		default:
+			object = PyObject_FromJsonbValue(&v);
+			break;
 	}
 	return (object);
 }
@@ -190,7 +191,7 @@ jsonb_to_plpython(PG_FUNCTION_ARGS)
 	PyObject   *dict;
 	PyObject   *decimal_module;
 
-	in = PG_GETARG_JSONB(0);
+	in = PG_GETARG_JSONB_P(0);
 
 	/* Import python cdecimal library and if there is no cdecimal library, */
 	/* import decimal library */
@@ -340,12 +341,27 @@ PyNumeric_ToJsonbValue(PyObject *obj)
 	JsonbValue *out = NULL;
 	JsonbValue *jbvInt;
 
+	char	   *str = PLyObject_AsString(obj);
+
 	jbvInt = palloc(sizeof(JsonbValue));
 	jbvInt->type = jbvNumeric;
-	jbvInt->val.numeric = DatumGetNumeric(DirectFunctionCall1(
-															  numeric_in,
-															  CStringGetDatum(PLyObject_AsString(obj))
-															  ));
+
+	PG_TRY();
+	{
+		jbvInt->val.numeric = DatumGetNumeric(DirectFunctionCall3(
+																  numeric_in,
+																  CStringGetDatum(str),
+																  0,
+																  -1
+																  ));
+	}
+	PG_CATCH();
+	{
+		pfree(jbvInt);
+		elog(ERROR, "The type you was trying to transform can't be represented in JSONB");
+	}
+	PG_END_TRY();
+
 	out = jbvInt;
 	return (out);
 }
@@ -360,22 +376,44 @@ static JsonbValue *
 PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 {
 	JsonbValue *out = NULL;
+	PyObject   *type = PyObject_Type(obj);
 
-	if (PyMapping_Check(obj))
+	if (type == PyObject_Type(PyDict_New()))
 	{
 		/* DICT */
 		out = PyMapping_ToJsonbValue(obj, jsonb_state);
 	}
-	else if (PyString_Check(obj))
+	else if (type == PyObject_Type(PyString_FromStringAndSize("1",1)))
 	{
 		/* STRING */
 		out = PyString_ToJsonbValue(obj);
 	}
-	else if (PySequence_Check(obj))
+	else if (type == PyObject_Type(PyList_New(0)))
 	{
 		/* LIST or STRING */
 		/* but we have checked on STRING */
 		out = PySequence_ToJsonbValue(obj, jsonb_state);
+	}
+	else if ((obj==Py_True)||(obj==Py_False))
+	{
+		/* Boolean */
+		JsonbValue *jbvElem;
+
+		jbvElem = palloc(sizeof(JsonbValue));
+		jbvElem->type = jbvBool;
+		jbvElem->val.boolean = obj == Py_True;
+		out = jbvElem;
+
+	}
+	else if (obj == Py_None)
+	{
+		/* None */
+		JsonbValue *jbvElem;
+
+		jbvElem = palloc(sizeof(JsonbValue));
+		jbvElem->type = jbvNull;
+		out = jbvElem;
+
 	}
 	else if (PyNumber_Check(obj))
 	{
@@ -384,15 +422,7 @@ PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 	}
 	else
 	{
-		/* EVERYTHING ELSE */
-		/* Handle it as it's repr */
-		JsonbValue *jbvElem;
-
-		jbvElem = palloc(sizeof(JsonbValue));
-		jbvElem->type = jbvString;
-		jbvElem->val.string.val = PLyObject_AsString(obj);
-		jbvElem->val.string.len = strlen(jbvElem->val.string.val);
-		out = jbvElem;
+		elog(ERROR, "The type you was trying to transform can't be represented in JSONB");
 	}
 	return (out);
 }
