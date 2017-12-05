@@ -383,7 +383,7 @@ PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 		/* DICT */
 		out = PyMapping_ToJsonbValue(obj, jsonb_state);
 	}
-	else if (type == PyObject_Type(PyString_FromStringAndSize("1",1)))
+	else if (type == PyObject_Type(PyString_FromStringAndSize("1", 1)))
 	{
 		/* STRING */
 		out = PyString_ToJsonbValue(obj);
@@ -394,7 +394,7 @@ PyObject_ToJsonbValue(PyObject *obj, JsonbParseState *jsonb_state)
 		/* but we have checked on STRING */
 		out = PySequence_ToJsonbValue(obj, jsonb_state);
 	}
-	else if ((obj==Py_True)||(obj==Py_False))
+	else if ((obj == Py_True) || (obj == Py_False))
 	{
 		/* Boolean */
 		JsonbValue *jbvElem;
