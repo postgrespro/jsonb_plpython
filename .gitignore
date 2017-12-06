@@ -11,3 +11,4 @@ regression.out
 *.gcov
 tags
 cscope*
+/log
