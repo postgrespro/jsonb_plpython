@@ -252,7 +252,8 @@ print(x)
 return x
 $$;
 SELECT test1inf();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  the value "inf" cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test1inf"
 -- test python -infty -> jsonb
@@ -265,7 +266,8 @@ print(x)
 return x
 $$;
 SELECT test2inf();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  the value "-inf" cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test2inf"
 -- test python NaN -> jsonb
@@ -294,7 +296,8 @@ x.add(None)
 return x
 $$;
 SELECT test1set();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  "<type 'set'>" type cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test1set"
 -- complex numbers -> jsonb
@@ -306,7 +309,8 @@ x = 1 + 2j
 return x
 $$;
 SELECT testComplexNumbers();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  the value "(1+2j)" cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "testcomplexnumbers"
 -- range -> jsonb
@@ -612,7 +616,8 @@ print(x)
 return x
 $$;
 SELECT test1inf();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  the value "inf" cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test1inf"
 -- test python -infty -> jsonb
@@ -625,7 +630,8 @@ print(x)
 return x
 $$;
 SELECT test2inf();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  the value "-inf" cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test2inf"
 -- test python NaN -> jsonb
@@ -654,7 +660,8 @@ x.add(None)
 return x
 $$;
 SELECT test1set();
-ERROR:  The type you was trying to transform can't be represented in JSONB
+ERROR:  plpython transformation error
+DETAIL:  "<type 'set'>" type cannot be transformed to jsonb
 CONTEXT:  while creating return value
 PL/Python function "test1set"
 -- Testing plpythonu extension.
